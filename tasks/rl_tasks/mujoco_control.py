@@ -89,7 +89,7 @@ class MujocoControlTask(OFATask):
         self.exp_prefix = f'{group_name}-{random.randint(int(1e5), int(1e6) - 1)}'
 
         # load dataset
-        dataset_path = f'data/rl_data/gym_data/{self.cfg.env}-{dataset}-v2.pkl'
+        dataset_path = f'dataset/gym_data/{self.cfg.env}-{dataset}-v2.pkl'
         self.dataset.load(dataset_path)
 
         print('=' * 50)
