@@ -47,7 +47,8 @@ max_image_size=512
 
 save_path=./checkpoints
 
-python3 -m torch.distributed.launch --nproc_per_node=${GPUS_PER_NODE} --master_port=${MASTER_PORT} ../../train.py \
+#python3 -m torch.distributed.launch --nproc_per_node=${GPUS_PER_NODE} --master_port=${MASTER_PORT} ../../train.py \
+python ../../train.py \
   $data \
   --text-data=${text_data} \
   --image-data=${image_data} \

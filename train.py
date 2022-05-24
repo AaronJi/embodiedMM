@@ -504,9 +504,12 @@ def get_valid_stats(
 def cli_main(
     modify_parser: Optional[Callable[[argparse.ArgumentParser], None]] = None
 ) -> None:
-    parser = options.get_training_parser()
-    args = options.parse_args_and_arch(parser, modify_parser=modify_parser)
 
+    parser = options.get_training_parser()
+    print('*******')
+    print(modify_parser)
+    args = options.parse_args_and_arch(parser, modify_parser=modify_parser)
+    print('*******')
     cfg = convert_namespace_to_omegaconf(args)
 
     if cfg.common.use_plasma_view:
