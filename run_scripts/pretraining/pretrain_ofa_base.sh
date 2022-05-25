@@ -101,6 +101,7 @@ python ../../train.py \
   --patch-image-size=${patch_image_size} \
   --sample-patch-num=${sample_patch_num} \
   --max-image-size=${max_image_size} \
-  --fp16 \
+  #--fp16 \
+  --cpu \
   --fp16-scale-window=128 \
   --num-workers=0
