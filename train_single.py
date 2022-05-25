@@ -1,7 +1,10 @@
+
+
+
 #!/usr/bin/env python3 -u
-# Copyright 2022 The OFA-Sys Team. 
+# Copyright 2022 The OFA-Sys Team.
 # All rights reserved.
-# This source code is licensed under the Apache 2.0 license 
+# This source code is licensed under the Apache 2.0 license
 # found in the LICENSE file in the root directory.
 
 """
@@ -14,6 +17,10 @@ import math
 import os
 import sys
 from typing import Dict, Optional, Any, List, Tuple, Callable
+
+from dataclasses import dataclass, field
+from typing import Dict, Optional
+from fairseq.dataclass import FairseqDataclass
 
 # We need to setup root logger before importing any fairseq libraries.
 logging.basicConfig(
@@ -46,6 +53,13 @@ from omegaconf import DictConfig, OmegaConf
 
 from utils import checkpoint_utils
 from trainer import Trainer
+
+@dataclass
+class OFAConfig(FairseqDataclass):
+    constraint_range: Optional[str] = field(
+        default=None,
+        metadata={"help": "constraint range"}
+    )
 
 
 def main(cfg: FairseqConfig) -> None:
@@ -501,55 +515,7 @@ def get_valid_stats(
     return stats
 
 
-def cli_main(
-    modify_parser: Optional[Callable[[argparse.ArgumentParser], None]] = None
-) -> None:
-
-    parser = options.get_training_parser()
-    args = options.parse_args_and_arch(parser, modify_parser=modify_parser)
-    cfg = convert_namespace_to_omegaconf(args)
-
-    if cfg.common.use_plasma_view:
-        server = PlasmaStore(path=cfg.common.plasma_path)
-        logger.info(f"Started plasma server pid {server.server.pid} {cfg.common.plasma_path}")
-
-    if args.profile:
-        with torch.cuda.profiler.profile():
-            with torch.autograd.profiler.emit_nvtx():
-                distributed_utils.call_main(cfg, main)
-    else:
-        distributed_utils.call_main(cfg, main)
-
-    # if cfg.common.use_plasma_view:
-    #     server.server.kill()
-
-    return
-
-def cli_main0():
-    parser = argparse.ArgumentParser()
-    args1, unknown = parser.parse_known_args()
-
-
-    ud = {}
-    for u in unknown:
-        uu = u.split('=')
-        if len(uu) < 2:
-            ud[uu[0]] = None
-        else:
-            ud[uu[0]] = uu[1]
-
-    args_unknown = argparse.Namespace(**ud)
-    cfg = convert_namespace_to_omegaconf(args_unknown)
-
-    print(cfg)
-    print(cfg.dataset)
-    print(cfg.criterion)
-    print(cfg.task)
-    exit(3)
-    main(cfg)
-    return
 
 if __name__ == "__main__":
-    cli_main()
-    #cli_main0()
+    main(OFAConfig)
 

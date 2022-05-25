@@ -191,6 +191,7 @@ class UnifyDataset(OFADataset):
             ps = torch.FloatTensor(ps)
             self.mask_span_distribution = torch.distributions.Categorical(ps)
 
+
         self.pos_tgt_item = self.encode_text(" yes")
         self.neg_tgt_item = self.encode_text(" no")
 
