@@ -525,31 +525,5 @@ def cli_main(
 
     return
 
-def cli_main0():
-    parser = argparse.ArgumentParser()
-    args1, unknown = parser.parse_known_args()
-
-
-    ud = {}
-    for u in unknown:
-        uu = u.split('=')
-        if len(uu) < 2:
-            ud[uu[0]] = None
-        else:
-            ud[uu[0]] = uu[1]
-
-    args_unknown = argparse.Namespace(**ud)
-    cfg = convert_namespace_to_omegaconf(args_unknown)
-
-    print(cfg)
-    print(cfg.dataset)
-    print(cfg.criterion)
-    print(cfg.task)
-    exit(3)
-    main(cfg)
-    return
-
 if __name__ == "__main__":
     cli_main()
-    #cli_main0()
-
