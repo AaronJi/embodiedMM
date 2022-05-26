@@ -50,6 +50,122 @@ def train(cfg, trainer):
 
     return
 
+'''
+    exit(0)
+    print(cfg.common.tpu)
+    print(cfg.dataset.train_subset)
+    print(max_epoch)
+    print(epoch_itr)
+    print(len(epoch_itr))
+    print(cfg.optimization.update_freq)
+    print(math.ceil(len(epoch_itr) / cfg.optimization.update_freq[0]))
+    print(total_num_updates)
+    print(trainer.get_num_updates())
+    print('#'*10)
+
+    task.load_dataset('train', combine=False, epoch=1)
+    #print(task.datasets['valid'])
+    #dataset_form = 'valid'
+    dataset_form = 'train'
+    unify_dataset = task.datasets[dataset_form]
+
+    index = 0
+
+    pair_samples = unify_dataset.process_image_text_pair(index)
+    #print_list_of_dict(pair_samples)
+    print('#'*10)
+    pure_text_examples = unify_dataset.process_pure_text(0)
+    #print_list_of_dict(pure_text_examples)
+    #print('#' * 10)
+    pure_image_examples = unify_dataset.process_pure_image(0)
+    #print_list_of_dict(pure_image_examples)
+    #print('#' * 10)
+    #pure_detection_examples = unify_dataset.process_detection(0)
+    #print_list_of_dict(pure_detection_examples)
+    #print('#' * 10)
+
+
+    import base64
+    from PIL import Image
+    from io import BytesIO
+
+
+    list_v_rel = torch.tensor([1.0, 0.1, 0.005, 0.95, 0, 0.87])
+    q_item = quantize(list_v_rel, unify_dataset.num_bins, unify_dataset.encode_text)
+    print(q_item)
+
+    #print(unify_dataset.src_dict.pad())  # 1
+    #print(unify_dataset.bos)  # 0
+    #print(unify_dataset.eos)  # 2
+
+    print('#' * 10)
+    #samples = [unify_dataset.process_image_text_pair(index) for index in [0, 3, 10]]
+    pair_samples, extra_samples = unify_dataset[index]
+    print(type(pair_samples))
+    #print(pair_samples)
+    print(len(pair_samples))
+    print(type(extra_samples))
+    #print(extra_samples)
+    print(len(extra_samples))
+    print('#' * 10)
+    #pair_samples1, extra_samples1 = unify_dataset[index+5]
+    #samples = pair_samples + pair_samples1
+    #from data.pretrain_data.unify_dataset import collate
+    #batch = collate(samples, unify_dataset.src_dict.pad(), unify_dataset.eos)
+    #print_batch(batch)
+
+    samples = [unify_dataset[index], unify_dataset[index+5]]
+    res_v1, res_v2 = unify_dataset.collater(samples)
+
+    print_batch(res_v1)
+    print('#' * 10)
+    print_batch(res_v2)
+
+q_tokens = []
+for v_rel in tensor_v_rel:
+    assert 0 <= v_rel <= 1
+    print((v_rel * (num_bins - 1)))
+    bin = int((v_rel * (num_bins - 1)).round())
+    q_token = "<bin_{}>".format(bin)
+    print(bin, q_token)
+    q_tokens.append(q_token)
+print(q_tokens)
+'''
+
+
+def quantize(tensor_v_rel, num_bins, encode_fun):
+    q_tokens = ["<bin_{}>".format(int((v_rel * (num_bins - 1)).round())) for v_rel in tensor_v_rel]
+    q_item = encode_fun(' '.join(q_tokens), use_bpe=False)
+    return q_item
+
+
+def print_batch(batch):
+    #print(batch)
+    for k in batch:
+        print(k)
+        if k == 'net_input':
+            for kk in batch[k]:
+                print('  ', kk, batch[k][kk].shape if batch[k][kk] is not None else None)
+        elif k == 'target':
+            print(batch[k].shape)
+        else:
+            print(batch[k])
+    print(batch['net_input']['src_lengths'])
+
+    src_lengths = batch['net_input']['src_lengths']
+    print(src_lengths)
+    print(src_lengths.sum())
+    print(src_lengths.sum().item())
+    return
+
+def print_list_of_dict(list_dict):
+    for ps in list_dict:
+        print(type(ps))
+        for pps in ps:
+            print(pps)
+            print(ps[pps])
+
+    return
 
 if __name__ == "__main__":
 
