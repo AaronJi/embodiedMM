@@ -1,5 +1,6 @@
 import torch
 
+from models.ofa.unify_transformer import base_architecture
 from models.ofa.ofa import OFAModel, ofa_base_architecture
 from fairseq.distributed import fsdp_wrap
 
@@ -13,6 +14,7 @@ class TrajectoryOFAModel(OFAModel):
     def __init__(self,  args, task):
 
         # make sure all arguments are present in older models
+        base_architecture(args)
         ofa_base_architecture(args)
 
         if args.encoder_layers_to_keep:

@@ -313,6 +313,7 @@ def train(
                 metrics.reset_meters("train_inner")
 
         end_of_epoch = not itr.has_next()
+        end_of_epoch = True
         valid_losses, should_stop = validate_and_save(
             cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch
         )
@@ -468,10 +469,6 @@ def validate(
         # don't pollute other aggregators (e.g., train meters)
         with metrics.aggregate(new_root=True) as agg:
             for i, sample in enumerate(progress):
-                print(type(sample))
-                print(len(sample))
-                print('*'*30)
-                exit(3)
                 if cfg.dataset.max_valid_steps is not None and i > cfg.dataset.max_valid_steps:
                     break
                 trainer.valid_step(sample)

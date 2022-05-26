@@ -126,7 +126,7 @@ class MujocoControlTask(OFATask):
                 hidden_size=self.cfg.embed_dim,
                 n_layer=self.cfg.n_layer,
             )
-        elif model_type == 'OFA':
+        elif model_type == 'ofa':
             model = TrajectoryOFAModel(self.cfg, self)
         else:
             raise NotImplementedError
