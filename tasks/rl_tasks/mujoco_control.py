@@ -5,6 +5,7 @@ import random
 import numpy as np
 import torch
 
+from fairseq.data import Dictionary
 from tasks.ofa_task import OFATask, OFAConfig
 from environments.rl_environments.gym_environment import GymEnvironment
 from data.rl_data.gym_dataset import GymDataset
@@ -22,14 +23,18 @@ class MujocoControlTask(OFATask):
 
         """Setup the task."""
         # load dictionaries
-        src_dict = super().load_dictionary(os.path.join(cfg.bpe_dir, "dict.txt"))
-        tgt_dict = super().load_dictionary(os.path.join(cfg.bpe_dir, "dict.txt"))
+        #src_dict = super().load_dictionary(os.path.join(cfg.bpe_dir, "dict.txt"))
+        #tgt_dict = super().load_dictionary(os.path.join(cfg.bpe_dir, "dict.txt"))
+
+        src_dict = Dictionary()
+        tgt_dict = Dictionary()
 
         src_dict.add_symbol("<mask>")
         tgt_dict.add_symbol("<mask>")
-        for i in range(OFAConfig.code_dict_size):
-            src_dict.add_symbol("<code_{}>".format(i))
-            tgt_dict.add_symbol("<code_{}>".format(i))
+        #for i in range(OFAConfig.code_dict_size):
+        #    src_dict.add_symbol("<code_{}>".format(i))
+        #    tgt_dict.add_symbol("<code_{}>".format(i))
+
         # quantization
         for i in range(OFAConfig.num_bins):
             src_dict.add_symbol("<bin_{}>".format(i))
