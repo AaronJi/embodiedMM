@@ -40,6 +40,7 @@ def main(cfg: argparse.Namespace) -> None:
     trainer._build_optimizer()
 
     train(cfg, trainer)
+    #eval(cfg, trainer)
     return
 
 def train(cfg, trainer):
@@ -48,6 +49,11 @@ def train(cfg, trainer):
     for iter in range(max_epoch):
         outputs = trainer.train_iteration(num_steps=cfg.num_steps_per_iter, iter_num=iter + 1, print_logs=True)
 
+    return
+
+
+def eval(cfg, trainer):
+    trainer.eval(print_logs=True)
     return
 
 '''

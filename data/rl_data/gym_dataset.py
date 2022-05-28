@@ -19,12 +19,11 @@ from PIL import Image, ImageFile
 
 from data import data_utils
 from data.ofa_dataset import OFADataset
-from utils.rl.rl_utils import discount_cumsum
-from utils.statistic_utils import cal_stat
+from utils.rl.rl_utils import discount_cumsum, get_nparray_from_str
 from utils.vision_helper import RandomAugment
 import utils.transforms as T
-
 from environments.rl_environments.gym_environment import GymEnvironment
+
 
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -241,10 +240,6 @@ class GymDataset(OFADataset):
 
         self.device = 'cpu'
 
-        self.build_env()
-        self.load_traj_spec()
-        self.extract_traj()
-
         #print(len(self.dataset))
         #print(len(self.gym_dataset))
 
@@ -253,10 +248,9 @@ class GymDataset(OFADataset):
         return
 
     def __len__(self):
-        return len(self.gym_dataset)
+        return len(self.dataset)
 
     def __getitem__(self, index):
-
         #with data_utils.numpy_seed(self.seed, self.epoch):
         example = self.process_trajectory(index)
 
@@ -273,111 +267,6 @@ class GymDataset(OFADataset):
 
         return collate(samples, pad_idx=self.src_dict.pad(), eos_idx=self.eos)
 
-    def build_env(self):
-        env = 'hopper'
-        self.model = 'ofa'
-
-        if env == 'hopper':
-            self.env_name = 'Hopper-v3'
-            self.max_ep_len = 1000
-            self.env_targets = [3600, 1800]  # evaluation conditioning targets
-            self.scale = 1000.  # normalization for rewards/returns
-        elif env == 'halfcheetah':
-            self.env_name = 'HalfCheetah-v3'
-            self.max_ep_len = 1000
-            self.env_targets = [12000, 6000]
-            self.scale = 1000.
-        elif env == 'walker2d':
-            self.env_name = 'Walker2d-v3'
-            self.max_ep_len = 1000
-            self.env_targets = [5000, 2500]
-            self.scale = 1000.
-        elif env == 'reacher2d':
-            self.env_name = 'Reacher2d'
-            self.max_ep_len = 100
-            self.env_targets = [76, 40]
-            self.scale = 10.
-        else:
-            raise NotImplementedError
-
-        if self.model == 'bc':
-            self.env_targets = self.env_targets[:1]  # since BC ignores target, no need for different evaluations
-
-        self.env = GymEnvironment(None, self.env_name)
-
-        return
-
-
-    def load_traj_spec(self):
-        self.mode = 'normal'
-        self.pct_traj = 1.0
-        self.max_len = 20
-
-        self.trajectories = self.dataset
-        states, actions, rewards, returns, traj_lens = [], [], [], [], []
-        for path in self.trajectories:
-            if self.mode == 'delayed':  # delayed: all rewards moved to end of trajectory
-                path['rewards'][-1] = path['rewards'].sum()
-                path['rewards'][:-1] = 0.
-            states.append(path['observations'])
-            actions.append(path['actions'])
-            rewards.append(path['rewards'])
-            returns.append(path['rewards'].sum())
-            traj_lens.append(len(path['observations']))
-
-        self.num_timesteps = sum(traj_lens)
-
-        # used for input normalization
-        states = np.concatenate(states, axis=0)
-        actions = np.concatenate(actions, axis=0)
-        rewards = np.concatenate(rewards, axis=0)
-
-        #state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
-        #self.state_mean = state_mean
-        #self.state_std = state_std
-
-        self.states = states
-        self.actions = actions
-        self.rewards = rewards
-
-        self.state_mean, self.state_std, self.state_bounds, self.state_norm_bounds = cal_stat(states)
-        self.action_mean, self.action_std, self.action_bounds, self.action_norm_bounds = cal_stat(actions)
-        self.reward_mean, self.reward_std, self.reward_bounds, self.reward_norm_bounds = cal_stat(rewards)
-        self.return_mean, self.return_std, self.return_bounds, self.return_norm_bounds = cal_stat(returns)
-
-        traj_lens, returns = np.array(traj_lens), np.array(returns)
-        self.traj_lens = traj_lens
-        self.returns = returns
-
-        '''
-        print(states.shape)
-        print(self.state_mean)
-        print(self.state_std)
-        print(self.state_bounds)
-        print(self.num_timesteps)
-        print(self.reward_bounds)
-        print(self.return_bounds)
-        exit(4)
-        '''
-
-        pct_traj = self.pct_traj
-
-        # only train on top pct_traj trajectories (for %BC experiment)
-        self.num_timesteps = max(int(pct_traj * self.num_timesteps), 1)
-        sorted_inds = np.argsort(returns)  # lowest to highest
-        self.num_trajectories = 1
-        timesteps = traj_lens[sorted_inds[-1]]
-        ind = len(self.trajectories) - 2
-        while ind >= 0 and timesteps + traj_lens[sorted_inds[ind]] <= self.num_timesteps:
-            timesteps += traj_lens[sorted_inds[ind]]
-            self.num_trajectories += 1
-            ind -= 1
-        self.sorted_inds = sorted_inds[-self.num_trajectories:]
-
-        # used to reweight sampling so we sample according to timesteps instead of trajectories
-        self.p_sample = traj_lens[sorted_inds] / sum(traj_lens[sorted_inds])
-        return
-
     def load(self, dataset_path):
         with open(dataset_path, 'rb') as f:
             self.trajectories = pickle.load(f)
@@ -386,101 +275,20 @@ class GymDataset(OFADataset):
 
         return
 
-    def extract_traj(self):
-        extract_way = 'rand'
-        extract_way = 'full'
-        extract_way = 'all'
-
-        self.gym_dataset = []
-
-        print('dataset %s, start to exract %i trajectories...' % (self.split, len(self.dataset)))
-        for i_traj, traj in enumerate(self.dataset):
-
-            len_traj = traj['rewards'].shape[0]
-
-            if extract_way == 'full':
-                si = min(len_traj - self.max_len, 0)
-            elif extract_way == 'rand':
-                si = random.randint(0, traj['rewards'].shape[0] - 1)
-            else:
-                si = 0
-
-            if si < 0:
-                continue
-
-            #len_traj = 21
-            #print(len_traj)
-            print('traj=%i, len=%i, si=%i,' % (i_traj, len_traj, si))
-            #s, a, r, d, rtg, timesteps, mask = [], [], [], [], [], [], []
-            for ti in range(si, len_traj - self.max_len+1):
-                #print('i_traj=%i, ti=%i' % (i_traj, ti))
-                s, a, r, d, rtg, timesteps, mask = self.extact_traj_window(traj, ti)
-                uniq_id = '%s-traj%i-time%i' % (self.split, i_traj, ti)
-                #example = self.process_pure_trajectory(torch.tensor(s), torch.tensor(a), torch.tensor(rtg[:,:-1,:]), uniq_id)
-                self.gym_dataset.append([uniq_id, s, a, r, d, rtg, timesteps, mask])
-        return
-
-    def extact_traj_window(self, traj, si):
-        scale_way = 'normalize'
-        scale_way = 'minmax'
-
-        # get sequences from dataset
-        s = traj['observations'][si:si + self.max_len].reshape(1, -1, self.env.state_dim)  # shape = [1, K, s_dim]
-        a = traj['actions'][si:si + self.max_len].reshape(1, -1, self.env.act_dim)
-        r = traj['rewards'][si:si + self.max_len].reshape(1, -1, 1)
-        if 'terminals' in traj:  # either terminals or dones
-            d = traj['terminals'][si:si + self.max_len].reshape(1, -1)
-        else:
-            d = traj['dones'][si:si + self.max_len].reshape(1, -1)
-
-        timesteps = np.arange(si, si + s.shape[1]).reshape(1, -1)  # [[si, si+1, ..., si+K-1]]
-        timesteps[timesteps >= self.max_ep_len] = self.max_ep_len - 1  # padding cutoff
-
-        if scale_way == 'minmax':
-            s = (s - self.state_bounds[0]) / (self.state_bounds[1] - self.state_bounds[0])
-            a = (a - self.action_bounds[0]) / (self.action_bounds[1] - self.action_bounds[0])
-            # r[-1] = (r[-1] - self.reward_bounds[0]) / (self.reward_bounds[1] - self.reward_bounds[0])
-            # rtg[-1] = (rtg[-1] - self.return_bounds[0]) / (self.return_bounds[1] - self.return_bounds[0])
-
-            # assert (self.state_bounds[0] <= s[-1]).all() and (self.state_bounds[1] >= s[-1]).all()
-            assert (0 <= s).all() and (1 >= s).all()
-            assert (0 <= a).all() and (1 >= a).all()
-            # assert (0 <= r[-1]).all() and (1 >= r[-1]).all()
-            # assert (0 <= rtg[-1]).all() and (1 >= rtg[-1]).all()
-
-        rtg = discount_cumsum(traj['rewards'][si:], gamma=1.)[:s.shape[1] + 1].reshape(1, -1, 1)
-        if rtg.shape[1] <= s.shape[1]:
-            rtg = np.concatenate([rtg, np.zeros((1, 1, 1))], axis=1)
-
-        if scale_way == 'minmax':
-            rtg_min = np.min(rtg)
-            rtg_max = np.max(rtg)
-            rtg = (rtg - rtg_min)/(rtg_max - rtg_min)
-
-        # padding and state + reward normalization
-        tlen = s.shape[1]
-        s = np.concatenate([np.zeros((1, self.max_len - tlen, self.env.state_dim)), s], axis=1)
-        if scale_way == 'normalize':
-            s = (s - self.state_mean) / self.state_std
-        a = np.concatenate([np.ones((1, self.max_len - tlen, self.env.act_dim)) * -10., a], axis=1)
-        r = np.concatenate([np.zeros((1, self.max_len - tlen, 1)), r], axis=1)
-        d = np.concatenate([np.ones((1, self.max_len - tlen)) * 2, d], axis=1)
-        rtg = np.concatenate([np.zeros((1, self.max_len - tlen, 1)), rtg], axis=1) / self.scale
-        timesteps = np.concatenate([np.zeros((1, self.max_len - tlen)), timesteps], axis=1)
-        mask = np.concatenate([np.zeros((1, self.max_len - tlen)), np.ones((1, tlen))], axis=1)
-
-        return s, a, r, d, rtg, timesteps, mask
-
-
     def process_trajectory(self, index):
-        uniq_id = self.gym_dataset[index][0]
-        s = self.gym_dataset[index][1]
-        a = self.gym_dataset[index][2]
-        #r = self.gym_dataset[index][3]
-        #d = self.gym_dataset[index][4]
-        rtg = self.gym_dataset[index][5]
-        #timesteps = self.gym_dataset[index][6]
-        #mask = self.gym_dataset[index][7]
+        uniq_id, s, a, r, d, rtg, timesteps, mask = self.dataset[index]
+        s = get_nparray_from_str(s)
+        a = get_nparray_from_str(a)
+        #r = get_nparray_from_str(r)
+        #d = get_nparray_from_str(d)
+        rtg = get_nparray_from_str(rtg)
+        #timesteps = get_nparray_from_str(timesteps)
+        #mask = get_nparray_from_str(mask)
+
+        #print(uniq_id, s, a, r, d, rtg, timesteps, mask)
+        #print(s.shape, a.shape, r.shape, d.shape, rtg.shape, timesteps.shape, mask.shape)
+        #print('&'*20)
+        #exit(3)
 
         patch_image = torch.zeros((3, self.code_image_size*2, self.code_image_size*2))
         patch_mask = torch.tensor([False])
@@ -489,9 +297,9 @@ class GymDataset(OFADataset):
 
         s = torch.tensor(s)
         a = torch.tensor(a)
-        rtg = torch.tensor(rtg[:, :-1, :])
+        rtg = torch.tensor(rtg[:-1])
 
-        r_s = torch.cat([rtg, s], dim=2)
+        r_s = torch.cat([rtg.reshape(20, -1), s.reshape(20, -1)], dim=-1)
         r_s_tokens = self.quantize(r_s.reshape(-1), self.num_bins)
         a_tokens = self.quantize(a.reshape(-1), self.num_bins)
 

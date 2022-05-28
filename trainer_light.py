@@ -121,6 +121,28 @@ class TrainerLight(object):
 
         return logs
 
+    def eval(self, print_logs=False):
+        self.model.eval()
+
+        logs = dict()
+
+        outputs_list = self.valid_step(None, raise_oom=False)
+        for outputs in outputs_list:
+            for k, v in outputs.items():
+                logs[f'evaluation/{k}'] = v
+
+        logs['time/total'] = time.time() - self.start_time
+
+        for k in self.diagnostics:
+            logs[k] = self.diagnostics[k]
+
+        if print_logs:
+            print('=' * 80)
+            for k, v in logs.items():
+                print(f'{k}: {v}')
+
+        return outputs_list
+
     def lr_step_begin_epoch(self, epoch):
         """Adjust the learning rate at the beginning of the epoch."""
         self.lr_scheduler.step_begin_epoch(epoch)

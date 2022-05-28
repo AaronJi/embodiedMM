@@ -197,9 +197,6 @@ class AdjustLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             construct_rdrop_sample(sample)
 
         net_output = model(**sample["net_input"])
-        print(net_output)
-        print('&'*20)
-        exit(4)
         loss, nll_loss, ntokens = self.compute_loss(model, net_output, sample, update_num, reduce=reduce)
         sample_size = (
             sample["target"].size(0) if self.sentence_avg else ntokens

@@ -102,6 +102,10 @@ class DecisionTransformer(TrajectoryModel):
         returns_to_go = returns_to_go.reshape(1, -1, 1)
         timesteps = timesteps.reshape(1, -1)
 
+        #print('***')
+        #print(states.shape)
+        #print(actions.shape)
+
         if self.max_length is not None:
             states = states[:,-self.max_length:]
             actions = actions[:,-self.max_length:]
@@ -118,6 +122,16 @@ class DecisionTransformer(TrajectoryModel):
         else:
             attention_mask = None
 
+        #print('***')
+        #print(states.shape)
+        #print(actions.shape)
+        #print(states[0])
+        #print(actions[0])
+        #print(returns_to_go.shape)
+
         _, action_preds, return_preds = self.forward(states, actions, None, returns_to_go, timesteps, attention_mask=attention_mask, **kwargs)
 
+        #print(action_preds.shape)
+        #print(action_preds[0,-1].shape)
+        #exit(3)
         return action_preds[0,-1]

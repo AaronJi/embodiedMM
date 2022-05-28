@@ -8,7 +8,7 @@ import torch
 from fairseq.data import Dictionary
 from tasks.ofa_task import OFATask, OFAConfig
 from environments.rl_environments.gym_environment import GymEnvironment
-from data.rl_data.gym_dataset import GymDataset
+from data.rl_data.gym_original_dataset import GymDataset
 from models.trajectory.decision_transformer import DecisionTransformer
 from models.trajectory.mlp_bc import MLPBCModel
 from models.trajectory.trajectory_OFA import TrajectoryOFAModel
