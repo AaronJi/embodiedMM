@@ -141,6 +141,7 @@ class MujocoControlTask(OFATask):
         return self.model
 
     def build_criterion(self, criterion_type):
+        self.criterion_type = criterion_type
         if criterion_type == 'action_pred_error':
             self.criterion = ActionPredictionCriterion()
         elif criterion_type == 'label_smoothed_cross_entropy':
@@ -153,10 +154,15 @@ class MujocoControlTask(OFATask):
     def train_step(self, sample, model, criterion, optimizer, ignore_grad=False):
         model.train()
 
-        loss, sample_size, logging_output = criterion.cal_loss(model, sample)
-
+        if self.criterion_type == 'action_pred_error':
+            loss, sample_size, logging_output = criterion.cal_loss(model, sample)
+        else:
+            loss, sample_size, logging_output = criterion(model, sample)
         if ignore_grad:
             loss *= 0
+
+        #print(loss)
+        #exit(4)
 
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), .25)

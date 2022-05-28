@@ -178,6 +178,8 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--model', type=str, default='dt')  # dt for decision transformer, bc for behavior cloning, ofa for OFA
     parser.add_argument('--criterion', type=str, default='action_pred_error')  # action_pred_error, label_smoothed_cross_entropy
+    parser.add_argument('--num_bins', type=int, default=1000)
+    parser.add_argument('--action_pred_way', type=str, default='max')
     parser.add_argument('--embed_dim', type=int, default=128)
     parser.add_argument('--n_layer', type=int, default=3)
     parser.add_argument('--n_head', type=int, default=1)

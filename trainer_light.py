@@ -59,7 +59,10 @@ class TrainerLight(object):
         #self.criterion.train()
         self.zero_grad()
 
-        sample = self.task.dataset.get_batch(self.batch_size)
+        scale_way = 'normalize'
+        if self.cfg.model == 'ofa':
+            scale_way = 'standardize'
+        sample = self.task.dataset.get_batch(self.batch_size, scale_way=scale_way)
         sample, is_dummy_batch = self._prepare_sample(sample)
 
         loss = self.task.train_step(sample, self.model, self.criterion, self.optimizer)
@@ -92,6 +95,8 @@ class TrainerLight(object):
 
         logs['time/training'] = time.time() - train_start
 
+        #print(train_losses)
+        #print(exit(3))
         eval_start = time.time()
 
         self.model.eval()
