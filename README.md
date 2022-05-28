@@ -15,13 +15,13 @@ python train_light.py --env hopper --dataset medium-replay --model bc
 
 ### ofa
 
-- action mse loss
+- action mse loss (not work)
 ```
 python train_light.py --env hopper --dataset medium-replay --model ofa
 ```
 - action bce loss
 ```
-python train_light.py --env hopper --dataset medium-replay --model ofa --criterion label_smoothed_cross_entropy
+sh run_scripts/rl/rl_ofa_try.sh
 ```
 
 ### pretrained task + ofa
