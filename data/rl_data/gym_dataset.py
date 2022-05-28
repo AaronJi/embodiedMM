@@ -21,8 +21,6 @@ from data import data_utils
 from data.ofa_dataset import OFADataset
 from utils.rl.rl_utils import discount_cumsum
 from utils.statistic_utils import cal_stat
-<<<<<<< Updated upstream
-=======
 from utils.vision_helper import RandomAugment
 import utils.transforms as T
 
@@ -51,7 +49,6 @@ def get_whole_word_mask(bpe, dictionary):
                 return bpe.is_beginning_of_word(tok)
             except ValueError:
                 return True
->>>>>>> Stashed changes
 
         mask_whole_words = torch.ByteTensor(
             list(map(is_beginning_of_word, range(len(dictionary))))
@@ -303,8 +300,6 @@ class GymDataset(OFADataset):
         else:
             raise NotImplementedError
 
-<<<<<<< Updated upstream
-=======
         if self.model == 'bc':
             self.env_targets = self.env_targets[:1]  # since BC ignores target, no need for different evaluations
 
@@ -319,7 +314,6 @@ class GymDataset(OFADataset):
         self.max_len = 20
 
         self.trajectories = self.dataset
->>>>>>> Stashed changes
         states, actions, rewards, returns, traj_lens = [], [], [], [], []
         for path in self.trajectories:
             if self.mode == 'delayed':  # delayed: all rewards moved to end of trajectory
@@ -354,20 +348,6 @@ class GymDataset(OFADataset):
         traj_lens, returns = np.array(traj_lens), np.array(returns)
         self.traj_lens = traj_lens
         self.returns = returns
-<<<<<<< Updated upstream
-
-        '''
-        print(states.shape)
-        print(self.state_mean)
-        print(self.state_std)
-        print(self.state_bounds)
-        print(self.num_timesteps)
-        print(self.reward_bounds)
-        print(self.return_bounds)
-        exit(4)
-        '''
-=======
->>>>>>> Stashed changes
 
         '''
         print(states.shape)
@@ -398,10 +378,6 @@ class GymDataset(OFADataset):
         self.p_sample = traj_lens[sorted_inds] / sum(traj_lens[sorted_inds])
         return
 
-<<<<<<< Updated upstream
-        return
-
-=======
     def load(self, dataset_path):
         with open(dataset_path, 'rb') as f:
             self.trajectories = pickle.load(f)
@@ -540,7 +516,6 @@ class GymDataset(OFADataset):
         q_item = self.encode_text(' '.join(q_tokens), use_bpe=False)
         return q_item
 
->>>>>>> Stashed changes
     def get_batch(self, batch_size=256, max_len=20, scale_way='normalize'):
         batch_inds = np.random.choice(
             np.arange(self.num_trajectories),
