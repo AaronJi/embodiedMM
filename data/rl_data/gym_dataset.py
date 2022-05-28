@@ -7,6 +7,7 @@ import torch
 
 from environments.rl_environments.gym_environment import GymEnvironment
 from utils.rl.rl_utils import discount_cumsum
+from utils.statistic_utils import cal_stat
 
 class GymDataset(object):
     def __init__(self, cfg: argparse.Namespace, env: GymEnvironment, max_ep_len=1000, scale=1):
@@ -23,26 +24,51 @@ class GymDataset(object):
         with open(dataset_path, 'rb') as f:
             self.trajectories = pickle.load(f)
 
-        states, traj_lens, returns = [], [], []
+        states, actions, rewards, returns, traj_lens = [], [], [], [], []
         for path in self.trajectories:
             if self.cfg.mode == 'delayed':  # delayed: all rewards moved to end of trajectory
                 path['rewards'][-1] = path['rewards'].sum()
                 path['rewards'][:-1] = 0.
             states.append(path['observations'])
-            traj_lens.append(len(path['observations']))
+            actions.append(path['actions'])
+            rewards.append(path['rewards'])
             returns.append(path['rewards'].sum())
-        traj_lens, returns = np.array(traj_lens), np.array(returns)
+            traj_lens.append(len(path['observations']))
+
+        self.num_timesteps = sum(traj_lens)
 
         # used for input normalization
         states = np.concatenate(states, axis=0)
-        state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
+        actions = np.concatenate(actions, axis=0)
+        rewards = np.concatenate(rewards, axis=0)
 
-        self.num_timesteps = sum(traj_lens)
+        #state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
+        #self.state_mean = state_mean
+        #self.state_std = state_std
+
         self.states = states
-        self.state_mean = state_mean
-        self.state_std = state_std
+        self.actions = actions
+        self.rewards = rewards
+
+        self.state_mean, self.state_std, self.state_bounds, self.state_norm_bounds = cal_stat(states)
+        self.action_mean, self.action_std, self.action_bounds, self.action_norm_bounds = cal_stat(actions)
+        self.reward_mean, self.reward_std, self.reward_bounds, self.reward_norm_bounds = cal_stat(rewards)
+        self.return_mean, self.return_std, self.return_bounds, self.return_norm_bounds = cal_stat(returns)
+
+        traj_lens, returns = np.array(traj_lens), np.array(returns)
         self.traj_lens = traj_lens
-        self.returns  = returns
+        self.returns = returns
+
+        '''
+        print(states.shape)
+        print(self.state_mean)
+        print(self.state_std)
+        print(self.state_bounds)
+        print(self.num_timesteps)
+        print(self.reward_bounds)
+        print(self.return_bounds)
+        exit(4)
+        '''
 
         pct_traj = self.cfg.pct_traj
 
@@ -61,10 +87,9 @@ class GymDataset(object):
         # used to reweight sampling so we sample according to timesteps instead of trajectories
         self.p_sample = traj_lens[sorted_inds] / sum(traj_lens[sorted_inds])
 
-
         return
 
-    def get_batch(self, batch_size=256, max_len=20):
+    def get_batch(self, batch_size=256, max_len=20, scale_way='normalize'):
         batch_inds = np.random.choice(
             np.arange(self.num_trajectories),
             size=batch_size,
@@ -88,14 +113,29 @@ class GymDataset(object):
 
             timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))  # [[si, si+1, ..., si+K-1]]
             timesteps[-1][timesteps[-1] >= self.max_ep_len] = self.max_ep_len-1  # padding cutoff
+
+            if scale_way == 'standardize':
+                s[-1] = (s[-1] - self.state_bounds[0]) / (self.state_bounds[1] - self.state_bounds[0])
+                a[-1] = (a[-1] - self.action_bounds[0]) / (self.action_bounds[1] - self.action_bounds[0])
+                #r[-1] = (r[-1] - self.reward_bounds[0]) / (self.reward_bounds[1] - self.reward_bounds[0])
+                #rtg[-1] = (rtg[-1] - self.return_bounds[0]) / (self.return_bounds[1] - self.return_bounds[0])
+
+                #assert (self.state_bounds[0] <= s[-1]).all() and (self.state_bounds[1] >= s[-1]).all()
+                assert (0 <= s[-1]).all() and (1 >= s[-1]).all()
+                assert (0 <= a[-1]).all() and (1 >= a[-1]).all()
+                #assert (0 <= r[-1]).all() and (1 >= r[-1]).all()
+                #assert (0 <= rtg[-1]).all() and (1 >= rtg[-1]).all()
+
             rtg.append(discount_cumsum(traj['rewards'][si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
+
             if rtg[-1].shape[1] <= s[-1].shape[1]:
                 rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
 
             # padding and state + reward normalization
             tlen = s[-1].shape[1]
             s[-1] = np.concatenate([np.zeros((1, max_len - tlen, self.env.state_dim)), s[-1]], axis=1)
-            s[-1] = (s[-1] - self.state_mean) / self.state_std
+            if scale_way == 'normalize':
+                s[-1] = (s[-1] - self.state_mean) / self.state_std
             a[-1] = np.concatenate([np.ones((1, max_len - tlen, self.env.act_dim)) * -10., a[-1]], axis=1)
             r[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), r[-1]], axis=1)
             d[-1] = np.concatenate([np.ones((1, max_len - tlen)) * 2, d[-1]], axis=1)
