@@ -1,1 +1,1 @@
-from .mujoco_control import MujocoControlTask
+from .mujoco_control_task import MujocoControlTask

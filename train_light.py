@@ -15,7 +15,7 @@ logging.basicConfig(
 logger = logging.getLogger("embodied_rl.train")
 
 from trainer_light import TrainerLight
-from tasks import *
+from tasks.rl_tasks.mujoco_control import MujocoControlTask
 
 def main(cfg: argparse.Namespace) -> None:
 
