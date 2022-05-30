@@ -13,6 +13,7 @@ env=hopper
 dataset=medium-replay
 rl_data_dir=../../dataset/gym_data
 rl_data=${rl_data_dir}/${env}-${dataset}-v2.pkl
+restore_file=./checkpoints/checkpoint_last.pt
 
 data_dir=../../dataset/pretrain_data
 neg_sample_dir=${data_dir}/negative_sample
@@ -32,7 +33,7 @@ arch=ofa_base
 criterion=adjust_label_smoothed_cross_entropy
 label_smoothing=0.0
 lr=1e-4
-max_epoch=50
+max_epoch=2
 warmup_ratio=0.01
 batch_size=4
 update_freq=1

@@ -175,8 +175,6 @@ def main(cfg: FairseqConfig) -> None:
         trainer.lr_reinit(total_num_updates, trainer.get_num_updates())
     lr = trainer.get_lr()
 
-    max_epoch = 3
-
     train_meter = meters.StopwatchMeter()
     train_meter.start()
     while epoch_itr.next_epoch_idx <= max_epoch:

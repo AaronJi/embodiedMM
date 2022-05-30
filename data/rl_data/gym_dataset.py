@@ -103,16 +103,6 @@ def collate(samples, pad_idx, eos_idx):
     return batch
 
 class GymDataset(OFADataset):
-    def __init__(self, cfg: argparse.Namespace, env: GymEnvironment, max_ep_len=1000, scale=1):
-        self.cfg = cfg
-        self.env = env
-        self.trajectories = None
-        self.device = cfg.device
-        self.max_ep_len = max_ep_len
-        self.scale = scale
-
-        return
-
     def __init__(
         self,
         split,
@@ -275,6 +265,39 @@ class GymDataset(OFADataset):
 
         return
 
+    def process_trajectory_from_vars(self, id, s, a, rtg, inference=False):
+
+        patch_image = torch.zeros((3, self.code_image_size*2, self.code_image_size*2))
+        patch_mask = torch.tensor([False])
+        code_mask = torch.tensor([False])
+        conf = torch.tensor([1.0])
+
+        s = torch.tensor(s)
+        a = torch.tensor(a)
+        if not inference:
+            rtg = torch.tensor(rtg[:-1])
+
+        r_s = torch.cat([rtg.reshape(-1, 1), s.reshape(-1, 11)], dim=-1)
+        r_s_tokens = self.quantize(r_s.reshape(-1), self.num_bins)
+        a_tokens = self.quantize(a.reshape(-1), self.num_bins)
+
+        src_item = torch.cat([self.bos_item, r_s_tokens, self.eos_item])
+        target_item = torch.cat([a_tokens, self.eos_item])
+        prev_output_item = torch.cat([self.bos_item, a_tokens])
+
+        example = {
+            "id": id,
+            "source": src_item,
+            "patch_image": patch_image,
+            "patch_mask": patch_mask,
+            "code_mask": code_mask,
+            "target": target_item,
+            "prev_output_tokens": prev_output_item,
+            "conf": conf,
+        }
+        return example
+
+
     def process_trajectory(self, index):
         uniq_id, s, a, r, d, rtg, timesteps, mask = self.dataset[index]
         s = get_nparray_from_str(s)
@@ -285,11 +308,7 @@ class GymDataset(OFADataset):
         #timesteps = get_nparray_from_str(timesteps)
         #mask = get_nparray_from_str(mask)
 
-        #print(uniq_id, s, a, r, d, rtg, timesteps, mask)
-        #print(s.shape, a.shape, r.shape, d.shape, rtg.shape, timesteps.shape, mask.shape)
-        #print('&'*20)
-        #exit(3)
-
+        '''
         patch_image = torch.zeros((3, self.code_image_size*2, self.code_image_size*2))
         patch_mask = torch.tensor([False])
         code_mask = torch.tensor([False])
@@ -318,71 +337,11 @@ class GymDataset(OFADataset):
             "conf": conf,
         }
         return example
+        '''
+
+        return self.process_trajectory_from_vars(uniq_id, s, a, rtg)
 
     def quantize(self, tensor_v_rel, num_bins):
         q_tokens = ["<bin_{}>".format(int((v_rel * (num_bins - 1)).round())) for v_rel in tensor_v_rel]
         q_item = self.encode_text(' '.join(q_tokens), use_bpe=False)
         return q_item
-
-    def get_batch(self, batch_size=256, max_len=20, scale_way='normalize'):
-        batch_inds = np.random.choice(
-            np.arange(self.num_trajectories),
-            size=batch_size,
-            replace=True,
-            p=self.p_sample,  # reweights so we sample according to timesteps
-        )
-
-        s, a, r, d, rtg, timesteps, mask = [], [], [], [], [], [], []
-        for i in range(batch_size):
-            traj = self.trajectories[int(self.sorted_inds[batch_inds[i]])]
-            si = random.randint(0, traj['rewards'].shape[0] - 1)
-
-            # get sequences from dataset
-            s.append(traj['observations'][si:si + max_len].reshape(1, -1, self.env.state_dim))   # shape = [1, K, s_dim]
-            a.append(traj['actions'][si:si + max_len].reshape(1, -1, self.env.act_dim))
-            r.append(traj['rewards'][si:si + max_len].reshape(1, -1, 1))
-            if 'terminals' in traj:  # either terminals or dones
-                d.append(traj['terminals'][si:si + max_len].reshape(1, -1))
-            else:
-                d.append(traj['dones'][si:si + max_len].reshape(1, -1))
-
-            timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))  # [[si, si+1, ..., si+K-1]]
-            timesteps[-1][timesteps[-1] >= self.max_ep_len] = self.max_ep_len-1  # padding cutoff
-
-            if scale_way == 'standardize':
-                s[-1] = (s[-1] - self.state_bounds[0]) / (self.state_bounds[1] - self.state_bounds[0])
-                a[-1] = (a[-1] - self.action_bounds[0]) / (self.action_bounds[1] - self.action_bounds[0])
-                #r[-1] = (r[-1] - self.reward_bounds[0]) / (self.reward_bounds[1] - self.reward_bounds[0])
-                #rtg[-1] = (rtg[-1] - self.return_bounds[0]) / (self.return_bounds[1] - self.return_bounds[0])
-
-                #assert (self.state_bounds[0] <= s[-1]).all() and (self.state_bounds[1] >= s[-1]).all()
-                assert (0 <= s[-1]).all() and (1 >= s[-1]).all()
-                assert (0 <= a[-1]).all() and (1 >= a[-1]).all()
-                #assert (0 <= r[-1]).all() and (1 >= r[-1]).all()
-                #assert (0 <= rtg[-1]).all() and (1 >= rtg[-1]).all()
-
-            rtg.append(discount_cumsum(traj['rewards'][si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
-
-            if rtg[-1].shape[1] <= s[-1].shape[1]:
-                rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
-
-            # padding and state + reward normalization
-            tlen = s[-1].shape[1]
-            s[-1] = np.concatenate([np.zeros((1, max_len - tlen, self.env.state_dim)), s[-1]], axis=1)
-            if scale_way == 'normalize':
-                s[-1] = (s[-1] - self.state_mean) / self.state_std
-            a[-1] = np.concatenate([np.ones((1, max_len - tlen, self.env.act_dim)) * -10., a[-1]], axis=1)
-            r[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), r[-1]], axis=1)
-            d[-1] = np.concatenate([np.ones((1, max_len - tlen)) * 2, d[-1]], axis=1)
-            rtg[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), rtg[-1]], axis=1) / self.scale
-            timesteps[-1] = np.concatenate([np.zeros((1, max_len - tlen)), timesteps[-1]], axis=1)
-            mask.append(np.concatenate([np.zeros((1, max_len - tlen)), np.ones((1, tlen))], axis=1))
-
-        s = torch.from_numpy(np.concatenate(s, axis=0)).to(dtype=torch.float32, device=self.device)
-        a = torch.from_numpy(np.concatenate(a, axis=0)).to(dtype=torch.float32, device=self.device)
-        r = torch.from_numpy(np.concatenate(r, axis=0)).to(dtype=torch.float32, device=self.device)
-        d = torch.from_numpy(np.concatenate(d, axis=0)).to(dtype=torch.long, device=self.device)
-        rtg = torch.from_numpy(np.concatenate(rtg, axis=0)).to(dtype=torch.float32, device=self.device)
-        timesteps = torch.from_numpy(np.concatenate(timesteps, axis=0)).to(dtype=torch.long, device=self.device)
-        mask = torch.from_numpy(np.concatenate(mask, axis=0)).to(device=self.device)
-        return s, a, r, d, rtg, timesteps, mask

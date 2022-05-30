@@ -302,34 +302,34 @@ class MujocoControlTask(OFATask):
         import random
 
         extract_way = 'rand'
-        extract_way = 'full'
-        extract_way = 'all'
+        #extract_way = 'full'
+        #extract_way = 'all'
         self.max_len = 20
         #traj = self.trajectories[int(self.sorted_inds[batch_inds[i]])]
         #print(int(self.sorted_inds[:train_valid_num_split]))
         #exit(3)
         train_valid_num_split = 1800
         if split == 'train':
-            train_valid_num_split = 2
+            train_valid_num_split = 200
             trajectories = [self.trajectories[int(i)] for i in self.sorted_inds[-train_valid_num_split:]]
+            trajectories.extend([self.trajectories[int(i)] for i in self.sorted_inds[0:train_valid_num_split]])
         else:
-            train_valid_num_split = 2030
+            train_valid_num_split = 1800
             trajectories = [self.trajectories[int(i)] for i in self.sorted_inds[:len(self.sorted_inds)-train_valid_num_split]]
 
         print('dataset %s, start to exract %i trajectories...' % (split, len(trajectories)))
 
+        random.shuffle(trajectories)
+
         gym_data = []
         for i_traj, traj in enumerate(trajectories):
-
             len_traj = traj['rewards'].shape[0]
-
             if extract_way == 'full':
                 si = min(len_traj - self.max_len, 0)
             elif extract_way == 'rand':
                 si = random.randint(0, traj['rewards'].shape[0] - 1)
             else:
                 si = 0
-
             if si < 0:
                 continue
 
@@ -405,14 +405,6 @@ class MujocoControlTask(OFATask):
         assert len(paths) > 0
 
         file_path = paths[(epoch - 1) % (len(paths))]
-
-        #self.convert_pickle_to_tsv('valid')
-        #self.convert_pickle_to_tsv('train')
-
-        #split = 'valid'
-        #split = 'train'
-        #selected_col_ids = list(range(len(open('../../dataset/gym_data/hopper-medium-replay-v2-%s.tsv' % split).readline().rstrip("\n").split(self.separator))))
-        #print(selected_col_ids)
 
         '''
         split = 'train'
