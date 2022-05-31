@@ -298,7 +298,7 @@ def train(
         with metrics.aggregate("train_inner"), torch.autograd.profiler.record_function(
             "train_step-%d" % i
         ):
-            #samples = [sample[0] for sample in samples]
+            #samples = [sample[0] for sample in samples] # needed when running pretrain task
             log_output = trainer.train_step(samples)
 
         if log_output is not None:  # not OOM, overflow, ...

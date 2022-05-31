@@ -11,22 +11,10 @@ user_dir=../../ofa_module
 
 env=hopper
 dataset=medium-replay
-rl_data_dir=../../dataset/gym_data
-rl_data=${rl_data_dir}/${env}-${dataset}-v2.pkl
+data_dir=../../dataset/gym_data
+data=${data_dir}/${env}-${dataset}-v2.pkl
 restore_file=./checkpoints/checkpoint_last.pt
-
-data_dir=../../dataset/pretrain_data
-neg_sample_dir=${data_dir}/negative_sample
-data=${data_dir}/vision_language_examples.tsv
-text_data=${data_dir}/text_examples.tsv
-image_data=${data_dir}/image_examples.tsv
-detection_data=${data_dir}/detection_examples.tsv
-
 selected_cols=0,1,2,3,4,5,6,7
-text_selected_cols=0,1
-image_selected_cols=0,1,2
-detection_selected_cols=0,1,2
-
 
 task=mujoco_control_task
 arch=ofa_base
@@ -52,21 +40,14 @@ max_image_size=512
 save_path=./checkpoints
 
 #python3 -m torch.distributed.launch --nproc_per_node=${GPUS_PER_NODE} --master_port=${MASTER_PORT} ../../train.py \
-python ../../train_trial.py \
+python ../../train.py \
   $data \
-  --text-data=${text_data} \
-  --image-data=${image_data} \
-  --detection-data=${detection_data} \
   --selected-cols=${selected_cols} \
-  --text-selected-cols=${text_selected_cols} \
-  --image-selected-cols=${image_selected_cols} \
-  --detection-selected-cols=${detection_selected_cols} \
   --bpe-dir=${bpe_dir} \
   --user-dir=${user_dir} \
   --restore-file=${restore_file} \
   --reset-optimizer --reset-dataloader --reset-meters \
   --save-dir=${save_path} \
-  --neg-sample-dir=${neg_sample_dir} \
   --task=${task} \
   --arch=${arch} \
   --criterion=${criterion} \

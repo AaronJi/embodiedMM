@@ -1,15 +1,12 @@
 
 
 from io import BytesIO
-
-
 import argparse
 import pickle
 import math
 import logging
 import random
 import warnings
-
 import numpy as np
 import torch
 import base64
@@ -19,12 +16,9 @@ from PIL import Image, ImageFile
 
 from data import data_utils
 from data.ofa_dataset import OFADataset
-from utils.rl.rl_utils import discount_cumsum, get_nparray_from_str
+from utils.rl.rl_utils import get_nparray_from_str
 from utils.vision_helper import RandomAugment
 import utils.transforms as T
-from environments.rl_environments.gym_environment import GymEnvironment
-
-
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 ImageFile.MAX_IMAGE_PIXELS = None
@@ -117,13 +111,6 @@ class GymDataset(OFADataset):
         num_bins=1000,
         patch_image_size=384,
         code_image_size=128,
-        pure_text_dataset=None,
-        pure_image_dataset=None,
-        detection_dataset=None,
-        all_object_list=None,
-        all_caption_list=None,
-        type2ans_dict=None,
-        ans2type_dict=None,
         max_image_size=512,
         mask_ratio=0.3,
         random_ratio=0.0,
@@ -140,17 +127,7 @@ class GymDataset(OFADataset):
         self.num_bins = num_bins
         self.patch_image_size = patch_image_size
         self.code_image_size = code_image_size
-
-        self.pure_text_dataset = pure_text_dataset
-        self.pure_image_dataset = pure_image_dataset
-        self.detection_dataset = detection_dataset
         self.epoch = 0
-
-        self.all_object_list = all_object_list
-        self.all_caption_list = all_caption_list
-        self.type2ans_dict = type2ans_dict
-        self.ans2type_dict = ans2type_dict
-
         self.mask_ratio = mask_ratio
         self.random_ratio = random_ratio
         self.keep_ratio = keep_ratio
@@ -230,11 +207,6 @@ class GymDataset(OFADataset):
 
         self.device = 'cpu'
 
-        #print(len(self.dataset))
-        #print(len(self.gym_dataset))
-
-        #print('*'*10)
-        #exit(4)
         return
 
     def __len__(self):
@@ -307,37 +279,6 @@ class GymDataset(OFADataset):
         rtg = get_nparray_from_str(rtg)
         #timesteps = get_nparray_from_str(timesteps)
         #mask = get_nparray_from_str(mask)
-
-        '''
-        patch_image = torch.zeros((3, self.code_image_size*2, self.code_image_size*2))
-        patch_mask = torch.tensor([False])
-        code_mask = torch.tensor([False])
-        conf = torch.tensor([1.0])
-
-        s = torch.tensor(s)
-        a = torch.tensor(a)
-        rtg = torch.tensor(rtg[:-1])
-
-        r_s = torch.cat([rtg.reshape(20, -1), s.reshape(20, -1)], dim=-1)
-        r_s_tokens = self.quantize(r_s.reshape(-1), self.num_bins)
-        a_tokens = self.quantize(a.reshape(-1), self.num_bins)
-
-        src_item = torch.cat([self.bos_item, r_s_tokens, self.eos_item])
-        target_item = torch.cat([a_tokens, self.eos_item])
-        prev_output_item = torch.cat([self.bos_item, a_tokens])
-
-        example = {
-            "id": uniq_id,
-            "source": src_item,
-            "patch_image": patch_image,
-            "patch_mask": patch_mask,
-            "code_mask": code_mask,
-            "target": target_item,
-            "prev_output_tokens": prev_output_item,
-            "conf": conf,
-        }
-        return example
-        '''
 
         return self.process_trajectory_from_vars(uniq_id, s, a, rtg)
 

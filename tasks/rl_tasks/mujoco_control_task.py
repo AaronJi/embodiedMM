@@ -18,6 +18,7 @@ from data.rl_data.gym_dataset import GymDataset
 from data.file_dataset import FileDataset
 from environments.rl_environments.gym_environment import GymEnvironment
 from utils.statistic_utils import cal_stat
+from utils.rl.rl_utils import get_str_from_1darray
 
 logger = logging.getLogger(__name__)
 
@@ -90,37 +91,32 @@ class MujocoControlConfig(OFAConfig):
         default=1,
         metadata={"help": "when masking N tokens, replace with 0, 1, or N tokens (use -1 for N)"},
     )
+    reward_mode: str = field(
+        default='normal',
+        metadata={"help": "mode of reward generaltion, normal or sparsed"},
+    )
+    pct_traj: float = field(
+        default=1.0,
+        metadata={"help": "percentage of sampled top-performed trajectories"},
+    )
+    max_len: int = field(
+        default=20,
+        metadata={"help": "window length of sampled trajectory data"},
+    )
+    extract_way: str = field(
+        default='all',
+        metadata={"help": "way of window generation: all, full or rand"},
+    )
+    scale_way: str = field(
+        default='minmax',
+        metadata={"help": "scale method of state and action"},
+    )
 
 
 @register_task("mujoco_control_task", dataclass=MujocoControlConfig)
 class MujocoControlTask(OFATask):
     def __init__(self, cfg: MujocoControlConfig, src_dict, tgt_dict):
         super().__init__(cfg, src_dict, tgt_dict)
-
-        self.type2ans_dict = json.load(open(os.path.join(self.cfg.neg_sample_dir, 'type2ans.json')))
-        self.ans2type_dict = {}
-        for type, answer_list in self.type2ans_dict.items():
-            if type == 'other':
-                continue
-            for answer in answer_list:
-                self.ans2type_dict[answer] = type
-
-        self.all_object_list = [
-            row.strip() for row in open(os.path.join(self.cfg.neg_sample_dir, 'object.txt')) if row.strip() != ''
-        ]
-        self.all_caption_list = [
-            row.strip() for row in open(os.path.join(self.cfg.neg_sample_dir, 'all_captions.txt')) if row.strip() != ''
-        ]
-
-        self.pure_text_dataset = None
-        self.pure_image_dataset = None
-        self.detection_dataset = None
-        if self.cfg.text_data is not None:
-            self.pure_text_dataset = FileDataset(self.cfg.text_data, self.cfg.text_selected_cols)
-        if self.cfg.image_data is not None:
-            self.pure_image_dataset = FileDataset(self.cfg.image_data, self.cfg.image_selected_cols)
-        if self.cfg.detection_data is not None:
-            self.detection_dataset = FileDataset(self.cfg.detection_data, self.cfg.detection_selected_cols)
 
         self.build_env()
         self.load_traj_spec()
@@ -194,13 +190,9 @@ class MujocoControlTask(OFATask):
         with open(gym_file_path, 'rb') as f:
             self.trajectories = pickle.load(f)
 
-        self.mode = 'normal'
-        self.pct_traj = 1.0
-        self.max_len = 20
-
         states, actions, rewards, returns, traj_lens = [], [], [], [], []
         for path in self.trajectories:
-            if self.mode == 'delayed':  # delayed: all rewards moved to end of trajectory
+            if self.cfg.reward_mode == 'delayed':  # delayed: all rewards moved to end of trajectory
                 path['rewards'][-1] = path['rewards'].sum()
                 path['rewards'][:-1] = 0.
             states.append(path['observations'])
@@ -233,18 +225,7 @@ class MujocoControlTask(OFATask):
         self.traj_lens = traj_lens
         self.returns = returns
 
-        '''
-        print(states.shape)
-        print(self.state_mean)
-        print(self.state_std)
-        print(self.state_bounds)
-        print(self.num_timesteps)
-        print(self.reward_bounds)
-        print(self.return_bounds)
-        exit(4)
-        '''
-
-        pct_traj = self.pct_traj
+        pct_traj = self.cfg.pct_traj
 
         # only train on top pct_traj trajectories (for %BC experiment)
         self.num_timesteps = max(int(pct_traj * self.num_timesteps), 1)
@@ -265,24 +246,9 @@ class MujocoControlTask(OFATask):
     def convert_pickle_to_tsv(self, file_path, split):
 
         gym_data = self.extract_trajectories(split)
-
-        #print(len(gym_data))
-        #uniq_id, s, a, r, d, rtg, timesteps, mask = gym_data[0]
-
-        '''
-        print(s.shape, a.shape, r.shape, d.shape, rtg.shape, timesteps.shape, mask.shape)
-        print(str(s.reshape(-1)))
-        print(str(rtg.reshape(-1)))
-        print(str(timesteps.reshape(-1)))
-        print(str(mask.reshape(-1)))
-        line = uniq_id + seperator + str(s.reshape(-1)) + seperator + str(a.reshape(-1)) + seperator + str(r.reshape(-1)) + seperator + str(d.reshape(-1)) + seperator + str(rtg.reshape(-1)) + seperator + str(timesteps.reshape(-1)) + seperator + str(mask.reshape(-1))
-        print(line)
-        '''
-
-        #gym_split_file_path = '../../dataset/gym_data/hopper-medium-replay-v2-%s.tsv' % split
         print('writing to tsv file %s...' % file_path)
 
-        from utils.rl.rl_utils import get_str_from_1darray
+
         gym_split_file = open(file_path, 'w')
         for index in range(len(gym_data)):
             uniq_id, s, a, r, d, rtg, timesteps, mask = gym_data[index]
@@ -296,25 +262,16 @@ class MujocoControlTask(OFATask):
 
         return
 
-
-
     def extract_trajectories(self, split):
         import random
 
-        extract_way = 'rand'
-        #extract_way = 'full'
-        #extract_way = 'all'
-        self.max_len = 20
-        #traj = self.trajectories[int(self.sorted_inds[batch_inds[i]])]
-        #print(int(self.sorted_inds[:train_valid_num_split]))
-        #exit(3)
-        train_valid_num_split = 1800
+        train_valid_num_split = 1900
         if split == 'train':
-            train_valid_num_split = 200
+            #train_valid_num_split = 200
             trajectories = [self.trajectories[int(i)] for i in self.sorted_inds[-train_valid_num_split:]]
             trajectories.extend([self.trajectories[int(i)] for i in self.sorted_inds[0:train_valid_num_split]])
         else:
-            train_valid_num_split = 1800
+            #train_valid_num_split = 1800
             trajectories = [self.trajectories[int(i)] for i in self.sorted_inds[:len(self.sorted_inds)-train_valid_num_split]]
 
         print('dataset %s, start to exract %i trajectories...' % (split, len(trajectories)))
@@ -324,22 +281,20 @@ class MujocoControlTask(OFATask):
         gym_data = []
         for i_traj, traj in enumerate(trajectories):
             len_traj = traj['rewards'].shape[0]
-            if extract_way == 'full':
-                si = min(len_traj - self.max_len, 0)
-            elif extract_way == 'rand':
+            if self.cfg.extract_way == 'full':
+                si = min(len_traj - self.cfg.max_len, 0)
+            elif self.cfg.extract_way == 'rand':
                 si = random.randint(0, traj['rewards'].shape[0] - 1)
             else:
                 si = 0
             if si < 0:
                 continue
 
-            #len_traj = 21
-            #print(len_traj)
             print('traj=%i, len=%i, si=%i,' % (i_traj, len_traj, si))
             #s, a, r, d, rtg, timesteps, mask = [], [], [], [], [], [], []
             moving_window_step = 1
-            moving_window_step = self.max_len
-            for ti in range(si, len_traj - self.max_len+1, moving_window_step):
+            #moving_window_step = self.cfg.max_len
+            for ti in range(si, len_traj - self.cfg.max_len+1, moving_window_step):
                 #print('i_traj=%i, ti=%i' % (i_traj, ti))
                 s, a, r, d, rtg, timesteps, mask = self.extact_traj_window(traj, ti)
                 uniq_id = '%s-traj%i-time%i' % (split, i_traj, ti)
@@ -350,22 +305,22 @@ class MujocoControlTask(OFATask):
     def extact_traj_window(self, traj, si):
 
         from utils.rl.rl_utils import discount_cumsum
-        scale_way = 'normalize'
-        scale_way = 'minmax'
+        #scale_way = 'normalize'
+        #scale_way = 'minmax'
 
         # get sequences from dataset
-        s = traj['observations'][si:si + self.max_len].reshape(1, -1, self.env.state_dim)  # shape = [1, K, s_dim]
-        a = traj['actions'][si:si + self.max_len].reshape(1, -1, self.env.act_dim)
-        r = traj['rewards'][si:si + self.max_len].reshape(1, -1, 1)
+        s = traj['observations'][si:si + self.cfg.max_len].reshape(1, -1, self.env.state_dim)  # shape = [1, K, s_dim]
+        a = traj['actions'][si:si + self.cfg.max_len].reshape(1, -1, self.env.act_dim)
+        r = traj['rewards'][si:si + self.cfg.max_len].reshape(1, -1, 1)
         if 'terminals' in traj:  # either terminals or dones
-            d = traj['terminals'][si:si + self.max_len].reshape(1, -1)
+            d = traj['terminals'][si:si + self.cfg.max_len].reshape(1, -1)
         else:
-            d = traj['dones'][si:si + self.max_len].reshape(1, -1)
+            d = traj['dones'][si:si + self.cfg.max_len].reshape(1, -1)
 
         timesteps = np.arange(si, si + s.shape[1]).reshape(1, -1)  # [[si, si+1, ..., si+K-1]]
         timesteps[timesteps >= self.max_ep_len] = self.max_ep_len - 1  # padding cutoff
 
-        if scale_way == 'minmax':
+        if self.cfg.scale_way == 'minmax':
             s = (s - self.state_bounds[0]) / (self.state_bounds[1] - self.state_bounds[0])
             a = (a - self.action_bounds[0]) / (self.action_bounds[1] - self.action_bounds[0])
             # r[-1] = (r[-1] - self.reward_bounds[0]) / (self.reward_bounds[1] - self.reward_bounds[0])
@@ -381,22 +336,23 @@ class MujocoControlTask(OFATask):
         if rtg.shape[1] <= s.shape[1]:
             rtg = np.concatenate([rtg, np.zeros((1, 1, 1))], axis=1)
 
-        if scale_way == 'minmax':
-            rtg_min = np.min(rtg)
+        if self.cfg.scale_way == 'minmax':
+            #rtg_min = np.min(rtg)
+            rtg_min = 0
             rtg_max = np.max(rtg)
             rtg = (rtg - rtg_min)/(rtg_max - rtg_min)
 
         # padding and state + reward normalization
         tlen = s.shape[1]
-        s = np.concatenate([np.zeros((1, self.max_len - tlen, self.env.state_dim)), s], axis=1)
-        if scale_way == 'normalize':
+        s = np.concatenate([np.zeros((1, self.cfg.max_len - tlen, self.env.state_dim)), s], axis=1)
+        if self.cfg.scale_way == 'normalize':
             s = (s - self.state_mean) / self.state_std
-        a = np.concatenate([np.ones((1, self.max_len - tlen, self.env.act_dim)) * -10., a], axis=1)
-        r = np.concatenate([np.zeros((1, self.max_len - tlen, 1)), r], axis=1)
-        d = np.concatenate([np.ones((1, self.max_len - tlen)) * 2, d], axis=1)
-        rtg = np.concatenate([np.zeros((1, self.max_len - tlen, 1)), rtg], axis=1) / self.scale
-        timesteps = np.concatenate([np.zeros((1, self.max_len - tlen)), timesteps], axis=1)
-        mask = np.concatenate([np.zeros((1, self.max_len - tlen)), np.ones((1, tlen))], axis=1)
+        a = np.concatenate([np.ones((1, self.cfg.max_len - tlen, self.env.act_dim)) * -10., a], axis=1)
+        r = np.concatenate([np.zeros((1, self.cfg.max_len - tlen, 1)), r], axis=1)
+        d = np.concatenate([np.ones((1, self.cfg.max_len - tlen)) * 2, d], axis=1)
+        rtg = np.concatenate([np.zeros((1, self.cfg.max_len - tlen, 1)), rtg], axis=1) / self.scale
+        timesteps = np.concatenate([np.zeros((1, self.cfg.max_len - tlen)), timesteps], axis=1)
+        mask = np.concatenate([np.zeros((1, self.cfg.max_len - tlen)), np.ones((1, tlen))], axis=1)
 
         return s, a, r, d, rtg, timesteps, mask
 
@@ -419,21 +375,7 @@ class MujocoControlTask(OFATask):
         file_path = '../../dataset/gym_data/hopper-medium-replay-v2-%s.tsv' % split
         if not os.path.exists(file_path):
             self.convert_pickle_to_tsv(file_path, split)
-        dataset = FileDataset(file_path, separator=self.separator)
-
-        '''
-        import pickle
-        gym_file_path = '../../dataset/gym_data/hopper-medium-replay-v2.pkl'
-        with open(gym_file_path, 'rb') as f:
-            gymdataset = pickle.load(f)
-
-        train_valid_num_split = 1800
-        if split == 'train':
-            gymdataset = gymdataset[:train_valid_num_split]
-        else:
-            gymdataset = gymdataset[train_valid_num_split:]        
-        '''
-
+        dataset = FileDataset(file_path, self.cfg.selected_cols, separator=self.separator)
 
         # GymDataset
         self.datasets[split] = GymDataset(
@@ -449,13 +391,6 @@ class MujocoControlTask(OFATask):
             num_bins=self.cfg.num_bins,
             patch_image_size=self.cfg.patch_image_size,
             code_image_size=self.cfg.code_image_size,
-            pure_text_dataset=self.pure_text_dataset,
-            pure_image_dataset=self.pure_image_dataset,
-            detection_dataset=self.detection_dataset,
-            all_object_list=self.all_object_list,
-            all_caption_list=self.all_caption_list,
-            type2ans_dict=self.type2ans_dict,
-            ans2type_dict=self.ans2type_dict,
             max_image_size=self.cfg.max_image_size,
             mask_ratio=self.cfg.mask_ratio,
             random_ratio=self.cfg.random_ratio,
@@ -464,35 +399,4 @@ class MujocoControlTask(OFATask):
             poisson_lambda=self.cfg.poisson_lambda,
             replace_length=self.cfg.replace_length
         )
-
         return
-
-        # UnifyDataset
-        self.datasets[split] = UnifyDataset(
-            split,
-            dataset,
-            self.bpe,
-            self.src_dict,
-            self.tgt_dict,
-            max_src_length=self.cfg.max_src_length,
-            max_tgt_length=self.cfg.max_tgt_length,
-            seed=self.cfg.pretrain_seed,
-            code_dict_size=self.cfg.code_dict_size,
-            num_bins=self.cfg.num_bins,
-            patch_image_size=self.cfg.patch_image_size,
-            code_image_size=self.cfg.code_image_size,
-            pure_text_dataset=self.pure_text_dataset,
-            pure_image_dataset=self.pure_image_dataset,
-            detection_dataset=self.detection_dataset,
-            all_object_list=self.all_object_list,
-            all_caption_list=self.all_caption_list,
-            type2ans_dict=self.type2ans_dict,
-            ans2type_dict=self.ans2type_dict,
-            max_image_size=self.cfg.max_image_size,
-            mask_ratio=self.cfg.mask_ratio,
-            random_ratio=self.cfg.random_ratio,
-            keep_ratio=self.cfg.keep_ratio,
-            mask_length=self.cfg.mask_length,
-            poisson_lambda=self.cfg.poisson_lambda,
-            replace_length=self.cfg.replace_length
-        )
