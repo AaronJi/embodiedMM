@@ -12,7 +12,7 @@ user_dir=../../ofa_module
 env=hopper
 dataset=medium-replay
 data_dir=../../dataset/gym_data
-data=${data_dir}/${env}-${dataset}-v2.pkl
+data=${data_dir}/${env}-${dataset}-v2-train.tsv
 restore_file=./checkpoints/checkpoint_last.pt
 selected_cols=0,1,2,3,4,5,6,7
 

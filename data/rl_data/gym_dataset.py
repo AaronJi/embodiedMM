@@ -1,15 +1,11 @@
 
 
-from io import BytesIO
-import argparse
 import pickle
 import math
 import logging
-import random
 import warnings
 import numpy as np
 import torch
-import base64
 from torchvision import transforms
 
 from PIL import Image, ImageFile
@@ -163,7 +159,6 @@ class GymDataset(OFADataset):
             ps = torch.FloatTensor(ps)
             self.mask_span_distribution = torch.distributions.Categorical(ps)
 
-
         self.pos_tgt_item = self.encode_text(" yes")
         self.neg_tgt_item = self.encode_text(" no")
 
@@ -269,7 +264,6 @@ class GymDataset(OFADataset):
         }
         return example
 
-
     def process_trajectory(self, index):
         uniq_id, s, a, r, d, rtg, timesteps, mask = self.dataset[index]
         s = get_nparray_from_str(s)
@@ -279,7 +273,6 @@ class GymDataset(OFADataset):
         rtg = get_nparray_from_str(rtg)
         #timesteps = get_nparray_from_str(timesteps)
         #mask = get_nparray_from_str(mask)
-
         return self.process_trajectory_from_vars(uniq_id, s, a, rtg)
 
     def quantize(self, tensor_v_rel, num_bins):

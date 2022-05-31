@@ -4,24 +4,22 @@
 # LICENSE file in the root directory of this source tree.
 
 from dataclasses import dataclass, field
-import json
 import logging
 import os
 import numpy as np
 from typing import Optional
 from omegaconf import DictConfig
 from fairseq.tasks import register_task
+from fairseq.data import Dictionary
 
 from tasks.ofa_task import OFATask, OFAConfig
-from data.pretrain_data.unify_dataset import UnifyDataset
 from data.rl_data.gym_dataset import GymDataset
 from data.file_dataset import FileDataset
-from environments.rl_environments.gym_environment import GymEnvironment
 from utils.statistic_utils import cal_stat
-from utils.rl.rl_utils import get_str_from_1darray
+from utils.rl.rl_utils import discount_cumsum, get_str_from_1darray
 
 logger = logging.getLogger(__name__)
-
+on_cloud = False  # if is on the cloud-computing, i.e. pai & odps
 
 @dataclass
 class MujocoControlConfig(OFAConfig):
@@ -109,7 +107,7 @@ class MujocoControlConfig(OFAConfig):
     )
     scale_way: str = field(
         default='minmax',
-        metadata={"help": "scale method of state and action"},
+        metadata={"help": "scale method of state and action: minmax or normalize"},
     )
 
 
@@ -119,14 +117,16 @@ class MujocoControlTask(OFATask):
         super().__init__(cfg, src_dict, tgt_dict)
 
         self.build_env()
-        self.load_traj_spec()
+        if not on_cloud:
+            self.load_traj_spec()
         self.separator = "\t"
+
         return
 
     @classmethod
     def setup_task(cls, cfg: DictConfig, **kwargs):
         """Setup the task."""
-        from fairseq.data import Dictionary
+
         src_dict = Dictionary()
         tgt_dict = Dictionary()
         # load dictionaries
@@ -177,11 +177,16 @@ class MujocoControlTask(OFATask):
         if self.model == 'bc':
             self.env_targets = self.env_targets[:1]  # since BC ignores target, no need for different evaluations
 
-        self.env = GymEnvironment(None, self.env_name)
+        if on_cloud:
+            from environments.rl_environments.gym_environment import GymEnvironment
+            self.env = GymEnvironment(None, self.env_name)
+            self.state_dim = self.env.state_dim
+            self.act_dim = self.env.act_dim
+        else:
+            self.state_dim = 11
+            self.act_dim = 3
 
         return
-
-
 
     def load_traj_spec(self):
         gym_file_path = '../../dataset/gym_data/hopper-medium-replay-v2.pkl'
@@ -248,7 +253,6 @@ class MujocoControlTask(OFATask):
         gym_data = self.extract_trajectories(split)
         print('writing to tsv file %s...' % file_path)
 
-
         gym_split_file = open(file_path, 'w')
         for index in range(len(gym_data)):
             uniq_id, s, a, r, d, rtg, timesteps, mask = gym_data[index]
@@ -304,13 +308,9 @@ class MujocoControlTask(OFATask):
 
     def extact_traj_window(self, traj, si):
 
-        from utils.rl.rl_utils import discount_cumsum
-        #scale_way = 'normalize'
-        #scale_way = 'minmax'
-
         # get sequences from dataset
-        s = traj['observations'][si:si + self.cfg.max_len].reshape(1, -1, self.env.state_dim)  # shape = [1, K, s_dim]
-        a = traj['actions'][si:si + self.cfg.max_len].reshape(1, -1, self.env.act_dim)
+        s = traj['observations'][si:si + self.cfg.max_len].reshape(1, -1, self.state_dim)  # shape = [1, K, s_dim]
+        a = traj['actions'][si:si + self.cfg.max_len].reshape(1, -1, self.act_dim)
         r = traj['rewards'][si:si + self.cfg.max_len].reshape(1, -1, 1)
         if 'terminals' in traj:  # either terminals or dones
             d = traj['terminals'][si:si + self.cfg.max_len].reshape(1, -1)
@@ -344,10 +344,10 @@ class MujocoControlTask(OFATask):
 
         # padding and state + reward normalization
         tlen = s.shape[1]
-        s = np.concatenate([np.zeros((1, self.cfg.max_len - tlen, self.env.state_dim)), s], axis=1)
+        s = np.concatenate([np.zeros((1, self.cfg.max_len - tlen, self.state_dim)), s], axis=1)
         if self.cfg.scale_way == 'normalize':
             s = (s - self.state_mean) / self.state_std
-        a = np.concatenate([np.ones((1, self.cfg.max_len - tlen, self.env.act_dim)) * -10., a], axis=1)
+        a = np.concatenate([np.ones((1, self.cfg.max_len - tlen, self.act_dim)) * -10., a], axis=1)
         r = np.concatenate([np.zeros((1, self.cfg.max_len - tlen, 1)), r], axis=1)
         d = np.concatenate([np.ones((1, self.cfg.max_len - tlen)) * 2, d], axis=1)
         rtg = np.concatenate([np.zeros((1, self.cfg.max_len - tlen, 1)), rtg], axis=1) / self.scale
@@ -359,22 +359,23 @@ class MujocoControlTask(OFATask):
     def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         paths = self.cfg.data.split(',')
         assert len(paths) > 0
-
-        file_path = paths[(epoch - 1) % (len(paths))]
-
-        '''
-        split = 'train'
-        file_path = '../../dataset/gym_data/hopper-medium-replay-v2-%s.tsv' % split
-        self.convert_pickle_to_tsv(file_path, split)
-        split = 'valid'
-        file_path = '../../dataset/gym_data/hopper-medium-replay-v2-%s.tsv' % split
-        self.convert_pickle_to_tsv(file_path, split)
-        exit(3)            
-        '''
-
-        file_path = '../../dataset/gym_data/hopper-medium-replay-v2-%s.tsv' % split
-        if not os.path.exists(file_path):
+        if on_cloud:
+            file_path = paths[(epoch - 1) % (len(paths))]
+        else:
+            '''
+            split = 'train'
+            file_path = '../../dataset/gym_data/hopper-medium-replay-v2-%s.tsv' % split
             self.convert_pickle_to_tsv(file_path, split)
+            split = 'valid'
+            file_path = '../../dataset/gym_data/hopper-medium-replay-v2-%s.tsv' % split
+            self.convert_pickle_to_tsv(file_path, split)
+            exit(3)            
+            '''
+
+            file_path = '../../dataset/gym_data/hopper-medium-replay-v2-%s.tsv' % split
+            if not os.path.exists(file_path):
+                self.convert_pickle_to_tsv(file_path, split)
+
         dataset = FileDataset(file_path, self.cfg.selected_cols, separator=self.separator)
 
         # GymDataset
