@@ -1,5 +1,5 @@
 
-import numpy as  np
+import numpy as np
 
 def discount_cumsum(x, gamma):
     discount_cumsum = np.zeros_like(x)

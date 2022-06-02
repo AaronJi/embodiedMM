@@ -178,13 +178,13 @@ class MujocoControlTask(OFATask):
             self.env_targets = self.env_targets[:1]  # since BC ignores target, no need for different evaluations
 
         if on_cloud:
+            self.state_dim = 11
+            self.act_dim = 3
+        else:
             from environments.rl_environments.gym_environment import GymEnvironment
             self.env = GymEnvironment(None, self.env_name)
             self.state_dim = self.env.state_dim
             self.act_dim = self.env.act_dim
-        else:
-            self.state_dim = 11
-            self.act_dim = 3
 
         return
 
