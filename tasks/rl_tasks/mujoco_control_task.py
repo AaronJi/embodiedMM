@@ -126,7 +126,9 @@ class MujocoControlTask(OFATask):
         self.build_env()
         self.load_traj_spec()
         self.separator = "\t"
-
+        self.level = 'expert'
+        #self.level = 'medium-replay'
+        #self.level = 'medium'
         self.generate_data()
         return
 
@@ -198,7 +200,7 @@ class MujocoControlTask(OFATask):
 
     def load_traj_spec(self):
         if on_local:
-            gym_file_path = '../../dataset/gym_data/hopper-medium-replay-v2.pkl'
+            gym_file_path = '../../dataset/gym_data/hopper-%s-v2.pkl' % self.level
 
             import pickle
             with open(gym_file_path, 'rb') as f:
@@ -308,11 +310,11 @@ class MujocoControlTask(OFATask):
         '''
 
         split = 'train'
-        file_path = '../../dataset/gym_data/hopper-medium-replay-v2-%s.tsv' % split
+        file_path = '../../dataset/gym_data/hopper-%s-v2-%s.tsv' % (self.level, split)
         print('dataset %s: %i trajectories start to write to tsv file %s...' % (split, len(trajectories_train), file_path))
         self.convert_pickle_to_tsv(file_path, split, trajectories_train)
         split = 'valid'
-        file_path = '../../dataset/gym_data/hopper-medium-replay-v2-%s.tsv' % split
+        file_path = '../../dataset/gym_data/hopper-%s-v2-%s.tsv' % (self.level, split)
         print('dataset %s: %i trajectories start to write to tsv file %s...' % (split, len(trajectories_valid), file_path))
         self.convert_pickle_to_tsv(file_path, split, trajectories_valid)
         exit(3)
