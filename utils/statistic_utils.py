@@ -11,3 +11,8 @@ def cal_stat(vetor_array):
     vector_array_normalized = (vetor_array - v_mean)/v_std
     v_normalized_bounds = [np.min(vector_array_normalized, axis=0), np.max(vector_array_normalized, axis=0)]
     return v_mean, v_std, v_bounds, v_normalized_bounds
+
+def if_array_in_bounds(a, bounds):
+    lb = bounds[0]
+    ub = bounds[1]
+    return np.greater_equal(a, lb).all() and np.less_equal(a, ub).all()

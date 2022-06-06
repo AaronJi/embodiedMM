@@ -276,6 +276,13 @@ class GymDataset(OFADataset):
         return self.process_trajectory_from_vars(uniq_id, s, a, rtg)
 
     def quantize(self, tensor_v_rel, num_bins):
-        q_tokens = ["<bin_{}>".format(int((v_rel * (num_bins - 1)).round())) for v_rel in tensor_v_rel]
+        q_tokens = []
+        for v_rel in tensor_v_rel:
+            try:
+                iv = int((v_rel * (num_bins - 1)).round())
+            except:
+                iv = 999
+            q_tokens.append("<bin_{}>".format(iv))
+        #q_tokens = ["<bin_{}>".format(iv) for v_rel in tensor_v_rel]
         q_item = self.encode_text(' '.join(q_tokens), use_bpe=False)
         return q_item

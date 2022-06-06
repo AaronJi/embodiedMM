@@ -16,6 +16,10 @@ class GymEnvironment(object):
         self.state_dim = env.observation_space.shape[0]
         self.act_dim = env.action_space.shape[0]
 
+        self.state_bounds = [env.observation_space.low, env.observation_space.high]
+        self.action_bounds = [env.action_space.low, env.action_space.high]
+        self.reward_bounds = [env.reward_range[0], env.reward_range[1]]
+
         self.env = env
         print('initialize environment %s with state dim = %i and action dim = %i' % (self.name, self.state_dim, self.act_dim))
         return
