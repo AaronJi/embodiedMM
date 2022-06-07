@@ -123,12 +123,14 @@ class MujocoControlTask(OFATask):
     def __init__(self, cfg: MujocoControlConfig, src_dict, tgt_dict):
         super().__init__(cfg, src_dict, tgt_dict)
 
-        self.build_env()
-        self.load_traj_spec()
-        self.separator = "\t"
         self.level = 'expert'
         #self.level = 'medium-replay'
         #self.level = 'medium'
+
+        self.build_env()
+        self.load_traj_spec()
+        self.separator = "\t"
+
         self.generate_data()
         return
 
@@ -277,7 +279,6 @@ class MujocoControlTask(OFATask):
                 self.action_bounds = [np.array([-1.0, -1.0, -1.0]), np.array([1.0, 1.0, 1.0])]
             self.reward_bounds = [-1.5, 6.5]
             self.return_bounds = [-1.5, 3200.0]
-
 
         return
 
