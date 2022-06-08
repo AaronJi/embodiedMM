@@ -30,7 +30,6 @@ class GymDataset(OFADataset):
 
         return
 
-
     def get_batch(self, batch_size=256, max_len=20, scale_way='normalize'):
         batch_inds = np.random.choice(
             np.arange(self.num_trajectories),
@@ -46,7 +45,7 @@ class GymDataset(OFADataset):
 
             # get sequences from dataset
             s.append(traj['observations'][si:si + max_len].reshape(1, -1, self.env.state_dim))   # shape = [1, K, s_dim]
-            a.append(traj['actions'][si:si + max_len].reshape(1, -1, self.env.act_dim))
+            a.append(traj['actions'][si:si + max_len].reshape(1, -1, self.env.action_dim))
             r.append(traj['rewards'][si:si + max_len].reshape(1, -1, 1))
             if 'terminals' in traj:  # either terminals or dones
                 d.append(traj['terminals'][si:si + max_len].reshape(1, -1))
@@ -78,7 +77,7 @@ class GymDataset(OFADataset):
             s[-1] = np.concatenate([np.zeros((1, max_len - tlen, self.env.state_dim)), s[-1]], axis=1)
             if scale_way == 'normalize':
                 s[-1] = (s[-1] - self.state_mean) / self.state_std
-            a[-1] = np.concatenate([np.ones((1, max_len - tlen, self.env.act_dim)) * -10., a[-1]], axis=1)
+            a[-1] = np.concatenate([np.ones((1, max_len - tlen, self.env.action_dim)) * -10., a[-1]], axis=1)
             r[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), r[-1]], axis=1)
             d[-1] = np.concatenate([np.ones((1, max_len - tlen)) * 2, d[-1]], axis=1)
             rtg[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), rtg[-1]], axis=1) / self.scale
@@ -133,17 +132,6 @@ class GymDataset(OFADataset):
         traj_lens, returns = np.array(traj_lens), np.array(returns)
         self.traj_lens = traj_lens
         self.returns = returns
-
-        '''
-        print(states.shape)
-        print(self.state_mean)
-        print(self.state_std)
-        print(self.state_bounds)
-        print(self.num_timesteps)
-        print(self.reward_bounds)
-        print(self.return_bounds)
-        exit(4)
-        '''
 
         pct_traj = self.pct_traj
 

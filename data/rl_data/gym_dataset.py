@@ -201,7 +201,8 @@ class GymDataset(OFADataset):
         ])
 
         self.device = 'cpu'
-
+        self.state_dim = 11
+        self.action_dim = 3
         return
 
     def __len__(self):
@@ -244,13 +245,21 @@ class GymDataset(OFADataset):
         if not inference:
             rtg = torch.tensor(rtg[:-1])
 
-        r_s = torch.cat([rtg.reshape(-1, 1), s.reshape(-1, 11)], dim=-1)
-        r_s_tokens = self.quantize(r_s.reshape(-1), self.num_bins)
-        a_tokens = self.quantize(a.reshape(-1), self.num_bins)
+        r_s_a = torch.cat([rtg.reshape(-1, 1), s.reshape(-1, self.state_dim), a.reshape(-1, self.action_dim)], dim=-1)
+        r_s_a_tokens = self.quantize(r_s_a.reshape(-1), self.num_bins)
+        #a_tokens = self.quantize(a.reshape(-1), self.num_bins)
+        src_tokens = r_s_a_tokens[:-self.action_dim]
+        a_tokens = r_s_a_tokens[-self.action_dim:]
 
-        src_item = torch.cat([self.bos_item, r_s_tokens, self.eos_item])
-        target_item = torch.cat([a_tokens, self.eos_item])
-        prev_output_item = torch.cat([self.bos_item, a_tokens])
+        use_end_token = False
+        if use_end_token:
+            src_item = torch.cat([self.bos_item, src_tokens, self.eos_item])
+            target_item = torch.cat([a_tokens, self.eos_item])
+            prev_output_item = torch.cat([self.bos_item, a_tokens])
+        else:
+            src_item = src_tokens
+            target_item = torch.cat([a_tokens, self.eos_item])
+            prev_output_item = torch.cat([self.bos_item, a_tokens])
 
         example = {
             "id": id,

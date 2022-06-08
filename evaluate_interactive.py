@@ -16,7 +16,7 @@ from fairseq.logging import progress_bar
 from fairseq.utils import reset_logging
 from omegaconf import DictConfig
 
-from utils import checkpoint_utils
+from utils import checkpoint_utils, checkpoint_utils_cloud
 from utils.eval_utils import eval_step, merge_results
 
 logging.basicConfig(
@@ -74,7 +74,7 @@ def main(cfg: DictConfig, **kwargs):
             num_shards=cfg.checkpoint.checkpoint_shard_count,
         )
     else:
-        models, saved_cfg, task = checkpoint_utils.load_model_ensemble_and_task(
+        models, saved_cfg, task = checkpoint_utils_cloud.load_model_ensemble_and_task(
             utils.split_paths(cfg.common_eval.path),
             arg_overrides=overrides,
             suffix=cfg.checkpoint.checkpoint_suffix,
@@ -120,7 +120,7 @@ def main(cfg: DictConfig, **kwargs):
                     tokenizer,
                     criterion,
                     device='cpu',
-                    target_return=tar / task.scale,
+                    target_return=tar,  #  / task.scale
                     mode='normal',
                 )
         returns.append(ret)
@@ -297,6 +297,14 @@ def evaluate_episode_rtg(
         rtg_rel = target_return/ep_return
         example = task.datasets['valid'].process_trajectory_from_vars(id, states_rel, actions_rel, rtg_rel, inference=True)
         sample = task.datasets['valid'].collater([example])
+
+        print(states)
+        print(states_rel)
+        print(actions)
+        print(actions_rel)
+        print(actions_rel)
+        print(rtg_rel)
+        exit(3)
 
         #action_pred_rel = get_result(task, generator, models, sample, tokenizer)
         action_pred_rel = get_ref_result(task, models, sample, tokenizer, criterion)
