@@ -11,8 +11,8 @@ class MLPBCModel(TrajectoryModel):
     Simple MLP that predicts next action a from past states s.
     """
 
-    def __init__(self, state_dim, act_dim, hidden_size, n_layer, dropout=0.1, max_length=1, **kwargs):
-        super().__init__(state_dim, act_dim)
+    def __init__(self, state_dim, action_dim, hidden_size, n_layer, dropout=0.1, max_length=1, **kwargs):
+        super().__init__(state_dim, action_dim)
 
         self.hidden_size = hidden_size
         self.max_length = max_length
@@ -27,7 +27,7 @@ class MLPBCModel(TrajectoryModel):
         layers.extend([
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(hidden_size, self.act_dim),
+            nn.Linear(hidden_size, self.action_dim),
             nn.Tanh(),
         ])
 
@@ -36,7 +36,7 @@ class MLPBCModel(TrajectoryModel):
     def forward(self, states, actions, rewards, attention_mask=None, target_return=None):
 
         states = states[:,-self.max_length:].reshape(states.shape[0], -1)  # concat states
-        actions = self.model(states).reshape(states.shape[0], 1, self.act_dim)
+        actions = self.model(states).reshape(states.shape[0], 1, self.action_dim)
 
         return None, actions, None
 

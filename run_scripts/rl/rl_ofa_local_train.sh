@@ -12,7 +12,7 @@ user_dir=../../ofa_module
 env=hopper
 dataset=medium-replay
 data_dir=../../dataset/gym_data
-data=${data_dir}/${env}-${dataset}-v2.tsv,${data_dir}/${env}-${dataset}-v2-small.tsv
+data=${data_dir}/${env}-${dataset}-v2-small.tsv,${data_dir}/${env}-${dataset}-v2-small.tsv
 restore_file=./checkpoints/checkpoint_last.pt
 selected_cols=0,1,2,3,4,5,6,7
 
@@ -23,7 +23,7 @@ label_smoothing=0.0
 lr=1e-4
 max_epoch=2
 warmup_ratio=0.01
-batch_size=64
+batch_size=4
 update_freq=1
 resnet_drop_path_rate=0.0
 encoder_drop_path_rate=0.1

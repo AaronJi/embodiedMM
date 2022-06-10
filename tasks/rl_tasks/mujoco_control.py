@@ -111,7 +111,7 @@ class MujocoControlTask(OFATask):
         if model_type == 'dt':
             model = DecisionTransformer(
                 state_dim=self.env.state_dim,
-                act_dim=self.env.action_dim,
+                action_dim=self.env.action_dim,
                 max_length=self.K,
                 max_ep_len=self.max_ep_len,
                 hidden_size=self.cfg.embed_dim,
@@ -126,7 +126,7 @@ class MujocoControlTask(OFATask):
         elif model_type == 'bc':
             model = MLPBCModel(
                 state_dim=self.env.state_dim,
-                act_dim=self.env.action_dim,
+                action_dim=self.env.action_dim,
                 max_length=self.K,
                 hidden_size=self.cfg.embed_dim,
                 n_layer=self.cfg.n_layer,

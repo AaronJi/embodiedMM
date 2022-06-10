@@ -5,7 +5,7 @@ import torch
 def evaluate_episode(
         env,
         #state_dim,
-        #act_dim,
+        #action_dim,
         model,
         max_ep_len=1000,
         device='cuda',
@@ -26,7 +26,7 @@ def evaluate_episode(
     # we keep all the histories on the device
     # note that the latest action and reward will be "padding"
     states = torch.from_numpy(state).reshape(1, env.state_dim).to(device=device, dtype=torch.float32)
-    actions = torch.zeros((0, env.act_dim), device=device, dtype=torch.float32)
+    actions = torch.zeros((0, env.action_dim), device=device, dtype=torch.float32)
     rewards = torch.zeros(0, device=device, dtype=torch.float32)
     target_return = torch.tensor(target_return, device=device, dtype=torch.float32)
     sim_states = []
@@ -35,7 +35,7 @@ def evaluate_episode(
     for t in range(max_ep_len):
 
         # add padding
-        actions = torch.cat([actions, torch.zeros((1, env.act_dim), device=device)], dim=0)
+        actions = torch.cat([actions, torch.zeros((1, env.action_dim), device=device)], dim=0)
         rewards = torch.cat([rewards, torch.zeros(1, device=device)])
 
         action = model.get_action(
@@ -65,7 +65,7 @@ def evaluate_episode(
 def evaluate_episode_rtg(
         env,
         #state_dim,
-        #act_dim,
+        #action_dim,
         model,
         max_ep_len=1000,
         scale=1000.,
@@ -89,7 +89,7 @@ def evaluate_episode_rtg(
     # we keep all the histories on the device
     # note that the latest action and reward will be "padding"
     states = torch.from_numpy(state).reshape(1, env.state_dim).to(device=device, dtype=torch.float32)
-    actions = torch.zeros((0, env.act_dim), device=device, dtype=torch.float32)
+    actions = torch.zeros((0, env.action_dim), device=device, dtype=torch.float32)
     rewards = torch.zeros(0, device=device, dtype=torch.float32)
 
     ep_return = target_return
@@ -102,7 +102,7 @@ def evaluate_episode_rtg(
     for t in range(max_ep_len):
 
         # add padding
-        actions = torch.cat([actions, torch.zeros((1, env.act_dim), device=device)], dim=0)
+        actions = torch.cat([actions, torch.zeros((1, env.action_dim), device=device)], dim=0)
         rewards = torch.cat([rewards, torch.zeros(1, device=device)])
 
         action = model.get_action(

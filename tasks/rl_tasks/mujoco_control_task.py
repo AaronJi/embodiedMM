@@ -139,10 +139,6 @@ class MujocoControlTask(OFATask):
     def __init__(self, cfg: MujocoControlConfig, src_dict, tgt_dict):
         super().__init__(cfg, src_dict, tgt_dict)
 
-        self.level = 'expert'
-        #self.level = 'medium-replay'
-        #self.level = 'medium'
-
         self.build_env()
         self.load_traj_spec()
         self.separator = "\t"
@@ -229,7 +225,8 @@ class MujocoControlTask(OFATask):
             else:
                 file_path = self.cfg.data
 
-            gym_file_path = '.'.join(file_path.split('.')[:-1] + ['pkl'])
+            #gym_file_path = '.'.join(file_path.split('.')[:-1] + ['pkl'])
+            gym_file_path = '../../dataset/gym_data/hopper-medium-replay-v2.pkl'
 
             import pickle
             with open(gym_file_path, 'rb') as f:

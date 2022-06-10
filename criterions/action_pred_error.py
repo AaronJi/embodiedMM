@@ -12,9 +12,9 @@ class ActionPredictionCriterion(object):
 
         states_pred, actions_pred, returns_pred = model.forward(states, actions, rewards, rtg[:,:-1], timesteps, attention_mask=attention_mask,)
 
-        act_dim = actions_pred.shape[2]
-        action_pred = actions_pred.reshape(-1, act_dim)[attention_mask.reshape(-1) > 0]
-        action_target = actions_target.reshape(-1, act_dim)[attention_mask.reshape(-1) > 0]
+        action_dim = actions_pred.shape[2]
+        action_pred = actions_pred.reshape(-1, action_dim)[attention_mask.reshape(-1) > 0]
+        action_target = actions_target.reshape(-1, action_dim)[attention_mask.reshape(-1) > 0]
 
         loss_fn = lambda s_hat, a_hat, r_hat, s, a, r: torch.mean((a_hat - a) ** 2)
         loss = loss_fn(
