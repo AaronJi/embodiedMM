@@ -11,11 +11,11 @@ bpe_dir=../../utils/BPE
 
 env=hopper
 dataset=medium-replay
-rl_data_dir=../../dataset/gym_data
-data=${rl_data_dir}/${env}-${dataset}-v2.pkl
+data_dir=../../dataset/gym_data
+data=${data_dir}/${env}-${dataset}-v2-small.tsv
 
 #data=../../dataset/caption_data/caption_test.tsv
-path=../../run_scripts/rl/checkpoints_cloud/checkpoint_last.pt
+path=../../run_scripts/rl/checkpoints/checkpoint_last.pt
 result_path=../../results/rl
 selected_cols=1,4,2
 split='test'
