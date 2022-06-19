@@ -69,7 +69,7 @@ def collate(samples, pad_idx, eos_idx):
     src_lengths = torch.LongTensor([dummy_src_token.ne(pad_idx).long().sum() for s in samples])
 
     sources = merge("source")
-    source_lengths = torch.LongTensor([s["source_mask"].ne(0).long().sum() for s in samples])
+    source_lengths = torch.LongTensor([s["source_mask"].ne(1).long().sum() for s in samples])
     source_masks = merge("source_mask")
     source_times = merge("source_time")
 
@@ -86,7 +86,7 @@ def collate(samples, pad_idx, eos_idx):
         target = merge("target")
         target_mask = merge("target_mask")
         #tgt_lengths = torch.LongTensor([s["target"].ne(pad_idx).long().sum() for s in samples])
-        tgt_lengths = torch.LongTensor([s["target_mask"].ne(0).long().sum() for s in samples])
+        tgt_lengths = torch.LongTensor([s["target_mask"].ne(1).long().sum() for s in samples])
         ntokens = tgt_lengths.sum().item()
         if samples[0].get("prev_output_tokens", None) is not None:
             prev_output_tokens = merge("prev_output_tokens")
@@ -343,4 +343,5 @@ class GymDataset(OFADataset):
         rtg = get_nparray_from_str(rtg)
         timesteps = get_nparray_from_str(timesteps)
         mask = get_nparray_from_str(mask)
+
         return self.process_trajectory_from_vars(uniq_id, s, a, r, d, rtg, timesteps, mask)

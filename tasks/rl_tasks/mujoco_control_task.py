@@ -102,7 +102,7 @@ class MujocoControlConfig(OFAConfig):
         metadata={"help": "gamma to calculate rtg from reward"},
     )
     window_len: int = field(
-        default=10,
+        default=20,
         metadata={"help": "window length of sampled trajectory data"},
     )
     moving_window_step: int = field(
@@ -348,26 +348,29 @@ class MujocoControlTask(OFATask):
         return
 
     def extract_trajectories(self, trajectories, file_path):
-
         gym_data = []
         for i_traj, traj in enumerate(trajectories):
             len_traj = len(traj['rewards'])
             if self.cfg.extract_way == 'full':
-                si = min(len_traj - self.cfg.window_len, 0)
+                t0_start = min(len_traj - self.cfg.window_len, 0)
             elif self.cfg.extract_way == 'rand':
                 import random
-                si = random.randint(0, traj['rewards'].shape[0] - 1)
+                t0_start = random.randint(0, traj['rewards'].shape[0] - 1)
             else:
-                si = 1 - self.cfg.window_len
-            if si < 1 - self.cfg.window_len:
+                #t0_start = 1 - self.cfg.window_len
+                t0_start = 0
+            if t0_start < 1 - self.cfg.window_len:
                 continue
 
-            print('traj=%i, len=%i, si=%i,' % (i_traj, len_traj, si))
+
+            t0_end = max(len_traj - self.cfg.window_len+1, t0_start)
+
+            print('traj=%i, len=%i, t0_start=%i, t0_end=%i' % (i_traj, len_traj, t0_start, t0_end))
             moving_window_step = 1
             #moving_window_step = self.cfg.window_len
-            for ti in range(si, len_traj - self.cfg.window_len+1, moving_window_step):
+            for t0 in range(t0_start, t0_end, moving_window_step):
                 #print('i_traj=%i, ti=%i' % (i_traj, ti))
-                s, a, r, d, rtg, timesteps, mask = self.extact_traj_window(traj, ti)
+                s, a, r, d, rtg, timesteps, mask = self.extact_traj_window(traj, t0)
 
                 if not if_array_in_bounds(s, [0.0, 1.0]):
                     print('state out of bound, skip')
@@ -382,11 +385,12 @@ class MujocoControlTask(OFATask):
                     print(rtg)
                     continue
 
-                uniq_id = '%s-traj%i-time%i' % (file_path.split('.')[-2], i_traj, ti)
+                uniq_id = '%s-traj%i-time%i' % (file_path.split('.')[-2], i_traj, t0)
                 #example = self.process_pure_trajectory(torch.tensor(s), torch.tensor(a), torch.tensor(rtg[:,:-1,:]), uniq_id)
                 gym_data.append((uniq_id, s, a, r, d, rtg, timesteps, mask))
             #if i_traj > 200:
             #    break
+
         return gym_data
 
     def extact_traj_window(self, traj, si):
@@ -398,6 +402,7 @@ class MujocoControlTask(OFATask):
             d = traj['terminals'][si:si + self.cfg.window_len].reshape(1, -1)
         else:
             d = traj['dones'][si:si + self.cfg.window_len].reshape(1, -1)
+        assert len(s) > 0 and len(a) > 0 and len(r) > 0 and len(d) > 0
 
         timesteps = np.arange(max(si, 0), max(si, 0) + s.shape[1]).reshape(1, -1)  # [[si, si+1, ..., si+K-1]]
         timesteps[timesteps >= self.max_ep_len] = self.max_ep_len - 1  # padding cutoff
@@ -542,6 +547,7 @@ class MujocoControlTask(OFATask):
         with torch.autograd.profiler.record_function("forward"):
             with torch.cuda.amp.autocast(enabled=(isinstance(optimizer, AMPOptimizer))):
                 loss, sample_size, logging_output = criterion(model, sample, update_num=update_num)
+
         if ignore_grad:
             loss *= 0
         with torch.autograd.profiler.record_function("backward"):

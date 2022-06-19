@@ -216,6 +216,18 @@ class AdjustLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         return loss, sample_size, logging_output
 
     def compute_loss_regression(self, model, net_output, sample, update_num, reduce=True):
+        '''
+
+        print('&'*30)
+        for i, (src, tgt) in enumerate(zip(sample['net_input']["sources"], sample['target'])):
+            print(i)
+            print(sample['id'][i])
+            print(src)
+            print(tgt)
+        print('&' * 30)
+
+        '''
+
 
         target_pred = net_output[0]
         target_mask = sample["target_mask"]

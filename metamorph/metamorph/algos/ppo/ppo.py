@@ -74,6 +74,8 @@ class PPO:
 
         for cur_iter in range(cfg.PPO.MAX_ITERS):
             print('cur_iter = %i' % cur_iter)
+            iter_start = time.time()
+
             if cfg.PPO.EARLY_EXIT and cur_iter >= cfg.PPO.EARLY_EXIT_MAX_ITERS:
                 break
 
@@ -120,7 +122,8 @@ class PPO:
             ):
                 self._log_stats(cur_iter)
                 self.save_model()
-
+            print('iter %i train finished, cost time %f seconds, total time %f seconds passed' % (cur_iter, time.time() - iter_start, time.time() - self.start))
+            exit(5)
         print("Finished Training: {}".format(self.file_prefix))
 
     def train_on_batch(self, cur_iter):
@@ -212,13 +215,10 @@ class PPO:
     def _log_fps(self, cur_iter, log=True):
         env_steps = self.env_steps_done(cur_iter)
         end = time.time()
-        self.fps = int(env_steps / (end - self.start))
+        passed_time = end - self.start
+        self.fps = int(env_steps / passed_time)
         if log:
-            print(
-                "Updates {}, num timesteps {}, FPS {}".format(
-                    cur_iter, env_steps, self.fps
-                )
-            )
+            print("Updates {}, num timesteps {}, time {}, FPS {}".format(cur_iter, env_steps, passed_time, self.fps))
 
     def env_steps_done(self, cur_iter):
         return (cur_iter + 1) * cfg.PPO.NUM_ENVS * cfg.PPO.TIMESTEPS

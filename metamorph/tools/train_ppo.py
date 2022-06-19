@@ -49,7 +49,10 @@ def calculate_max_iters():
         int(cfg.PPO.EARLY_EXIT_STATE_ACTION_PAIRS) // cfg.PPO.TIMESTEPS // cfg.PPO.NUM_ENVS
     )
 
+    print('MAX_ITERS: %i' % cfg.PPO.MAX_ITERS)
+    print('EARLY_EXIT_MAX_ITERS: %i' % cfg.PPO.EARLY_EXIT_MAX_ITERS)
 
+    return
 def maybe_infer_walkers():
     if cfg.ENV_NAME != "Unimal-v0":
         return
