@@ -102,7 +102,7 @@ class MujocoControlConfig(OFAConfig):
         metadata={"help": "gamma to calculate rtg from reward"},
     )
     window_len: int = field(
-        default=20,
+        default=10,
         metadata={"help": "window length of sampled trajectory data"},
     )
     moving_window_step: int = field(
@@ -130,7 +130,7 @@ class MujocoControlConfig(OFAConfig):
         metadata={"help": "if get variable statistics from data"},
     )
     only_bins: bool = field(
-        default=True,
+        default=False,
         metadata={"help": "if use only bins inside token dict"},
     )
 
@@ -175,33 +175,21 @@ class MujocoControlTask(OFATask):
 
     def build_env(self):
         env = 'hopper'
-        self.model = 'ofa'
 
         if env == 'hopper':
             self.env_name = 'Hopper-v3'
             self.max_ep_len = 1000
-            #self.env_targets = [3600, 1800]  # evaluation conditioning targets
-            #self.scale = 1000.  # normalization for rewards/returns
         elif env == 'halfcheetah':
             self.env_name = 'HalfCheetah-v3'
             self.max_ep_len = 1000
-            #self.env_targets = [12000, 6000]
-            #self.scale = 1000.
         elif env == 'walker2d':
             self.env_name = 'Walker2d-v3'
             self.max_ep_len = 1000
-            #self.env_targets = [5000, 2500]
-            #self.scale = 1000.
         elif env == 'reacher2d':
             self.env_name = 'Reacher2d'
             self.max_ep_len = 100
-            #self.env_targets = [76, 40]
-            #self.scale = 10.
         else:
             raise NotImplementedError
-
-        #if self.model == 'bc':
-            #self.env_targets = self.env_targets[:1]  # since BC ignores target, no need for different evaluations
 
         if on_local:
             self.build_local_env()

@@ -13,17 +13,17 @@ env=hopper
 dataset=medium-replay
 data_dir=../../dataset/gym_data
 data=${data_dir}/${env}-${dataset}-v2-small.tsv,${data_dir}/${env}-${dataset}-v2-small.tsv
-restore_file=./checkpoints/checkpoint_last.pt
+restore_file=./checkpoints/ofa_base.pt
 selected_cols=0,1,2,3,4,5,6,7
 
 task=mujoco_control_task
-arch=ofa_base
+arch=ofa_traj_base
 criterion=adjust_label_smoothed_cross_entropy
 label_smoothing=0.0
 lr=1e-4
 max_epoch=2
 warmup_ratio=0.01
-batch_size=4
+batch_size=32
 update_freq=1
 resnet_drop_path_rate=0.0
 encoder_drop_path_rate=0.1
@@ -86,5 +86,14 @@ python ../../train.py \
   --sample-patch-num=${sample_patch_num} \
   --max-image-size=${max_image_size} \
   --cpu \
+  --freeze-encoder-embedding \
+  --freeze-decoder-embedding \
+  --ddp-backend=no_c10d \
+  --use-bmuf \
   --fp16-scale-window=128 \
   --num-workers=0
+
+# --freeze-encoder-embedding \
+# --freeze-decoder-embedding \
+# --ddp-backend=no_c10d \
+# --use-bmuf \

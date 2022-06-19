@@ -1,0 +1,10 @@
+{
+  "symmetric_limbs": [
+    [
+      13,
+      14
+    ]
+  ],
+  "dof": 7,
+  "num_limbs": 6
+}

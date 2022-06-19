@@ -1,1 +1,2 @@
 from .ofa import OFAModel, ofa_base_architecture, ofa_large_architecture, ofa_huge_architecture
+from .trajectory import TrajectoryOFAModel, ofa_traj_base_architecture, ofa_traj_large_architecture, ofa_traj_huge_architecture

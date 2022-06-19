@@ -49,46 +49,95 @@ def get_whole_word_mask(bpe, dictionary):
 def collate(samples, pad_idx, eos_idx):
     if len(samples) == 0:
         return {}
-
+    '''
     def merge(key):
         return data_utils.collate_tokens(
             [s[key] for s in samples],
             pad_idx,
             eos_idx=eos_idx,
         )
+    '''
+
+    def merge(key):
+        return torch.stack([s[key] for s in samples], dim=0)
 
     id = np.array([s["id"] for s in samples])
-    src_tokens = merge("source")
-    src_lengths = torch.LongTensor([s["source"].ne(pad_idx).long().sum() for s in samples])
+    #src_tokens = merge("source")
+    #src_tokens = torch.stack([s["source"] for s in samples], dim=0)
+    dummy_src_token = torch.tensor([], dtype=torch.int)
+    src_tokens = torch.stack([dummy_src_token for s in samples], dim=0)  # torch.zeros((4, 0))
+    src_lengths = torch.LongTensor([dummy_src_token.ne(pad_idx).long().sum() for s in samples])
 
-    patch_images = torch.stack([sample['patch_image'] for sample in samples], dim=0)
-    patch_masks = torch.cat([sample['patch_mask'] for sample in samples])
+    sources = merge("source")
+    source_lengths = torch.LongTensor([s["source_mask"].ne(0).long().sum() for s in samples])
+    source_masks = merge("source_mask")
+    source_times = merge("source_time")
+
+    nsentences = len(samples)
+    #ntokens = (code_masks != 0).sum().detach().cpu().item()
+
+    #patch_images = torch.stack([sample['patch_image'] for sample in samples], dim=0)
+    #patch_masks = torch.cat([sample['patch_mask'] for sample in samples])
 
     prev_output_tokens = None
     target = None
+    target_mask = None
     if samples[0].get("target", None) is not None:
         target = merge("target")
-        tgt_lengths = torch.LongTensor([s["target"].ne(pad_idx).long().sum() for s in samples])
+        target_mask = merge("target_mask")
+        #tgt_lengths = torch.LongTensor([s["target"].ne(pad_idx).long().sum() for s in samples])
+        tgt_lengths = torch.LongTensor([s["target_mask"].ne(0).long().sum() for s in samples])
         ntokens = tgt_lengths.sum().item()
-
         if samples[0].get("prev_output_tokens", None) is not None:
             prev_output_tokens = merge("prev_output_tokens")
     else:
         ntokens = src_lengths.sum().item()
+        #ntokens = (code_masks != 0).sum().detach().cpu().item()
+        tgt_lengths = None
 
     batch = {
         "id": id,
-        "nsentences": len(samples),
+        "nsentences": nsentences,
         "ntokens": ntokens,
         "net_input": {
             "src_tokens": src_tokens,
             "src_lengths": src_lengths,
-            "patch_images": patch_images,
-            "patch_masks": patch_masks,
+            "sources": sources,
+            "source_lengths": source_lengths,
+            "source_masks": source_masks,
+            "source_times": source_times,
+            #"patch_images": patch_images,
+            #"patch_masks": patch_masks,
             "prev_output_tokens": prev_output_tokens
         },
         "target": target,
+        "target_length": tgt_lengths,
+        "target_mask": target_mask,
     }
+
+    '''
+    print(batch["id"])
+    print(batch["nsentences"])
+    print(batch["ntokens"])
+    print(batch["net_input"]["obs"])
+    print(batch["net_input"]["obs_lengths"])
+    print(batch["net_input"]["code_times"])
+    print(batch["net_input"]["code_masks"])
+    print(batch["net_input"]["prev_output_tokens"])
+    print(batch["target"])
+    print(batch["target_length"])
+    print(batch["target_mask"])
+    print('&'*10)
+    print(batch["net_input"]["obs"].shape)
+    print(batch["net_input"]["obs_lengths"].shape)
+    print(batch["net_input"]["code_times"].shape)
+    print(batch["net_input"]["code_masks"].shape)
+    print(batch["net_input"]["prev_output_tokens"].shape)
+    print(batch["target"].shape)
+    print(batch["target_length"].shape)
+    print(batch["target_mask"].shape)
+    exit(4) 
+    '''
 
     return batch
 
@@ -200,9 +249,12 @@ class GymDataset(OFADataset):
             T.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], max_image_size=max_image_size)
         ])
 
-        self.device = 'cpu'
+        #self.device = 'cpu'
         self.state_dim = 11
         self.action_dim = 3
+        self.state_padding_num = 0.5
+        self.action_padding_num = 0.5
+
         return
 
     def __len__(self):
@@ -210,8 +262,8 @@ class GymDataset(OFADataset):
 
     def __getitem__(self, index):
         #with data_utils.numpy_seed(self.seed, self.epoch):
-        example = self.process_trajectory(index)
-
+        uniq_id, src, tgt, timestep, mask = self.process_trajectory(index)
+        example = self.process_train_seq(uniq_id, src, tgt, timestep, mask)
         return example
 
 
@@ -233,79 +285,62 @@ class GymDataset(OFADataset):
 
         return
 
-    def process_token_seq(self, id, src, tgt):
-        src_tokens = self.quantize(src, self.num_bins)
-        use_end_token = False
-        if use_end_token:
-            src_item = torch.cat([self.bos_item, src_tokens, self.eos_item])
-        else:
-            src_item = src_tokens
-
-        if tgt is None:
-            target_item = self.eos_item.reshape(-1)
-            prev_output_item = self.bos_item.reshape(-1)
-        else:
-            tgt_tokens = self.quantize(tgt, self.num_bins)
-            target_item = torch.cat([tgt_tokens, self.eos_item])
-            prev_output_item = torch.cat([self.bos_item, tgt_tokens])
-
-        patch_image = torch.zeros((3, self.code_image_size * 2, self.code_image_size * 2))
-        patch_mask = torch.tensor([False])
-        code_mask = torch.tensor([False])
-        conf = torch.tensor([1.0])
+    def process_train_seq(self, uniq_id, src, tgt, timestep, mask):
+        prev_tgt = torch.cat([self.action_padding_num*torch.ones(1, self.action_dim), tgt[:-1]])
+        src_mask = mask
+        tgt_mask = mask
 
         example = {
-            "id": id,
-            "source": src_item,
-            "patch_image": patch_image,
-            "patch_mask": patch_mask,
-            "code_mask": code_mask,
-            "target": target_item,
-            "prev_output_tokens": prev_output_item,
-            "conf": conf,
+            "id": uniq_id,
+            "source": src,
+            "source_mask": src_mask,
+            "source_time": timestep,
+            #"patch_image": patch_image,
+            #"patch_mask": patch_mask,
+
+            "target": tgt,
+            "target_mask": tgt_mask,
+            "prev_output_tokens": prev_tgt,
+            #"conf": conf,
         }
 
         return example
 
-    def process_trajectory_from_vars(self, id, s, a, rtg, inference=False):
+    def process_trajectory_from_vars(self, uniq_id, s, a, r, d, rtg, timesteps, mask, inference=False):
 
-        s = torch.tensor(s)
-        a = torch.tensor(a)
+        s = torch.tensor(s, dtype=torch.float32)
+        a = torch.tensor(a, dtype=torch.float32)
         if not inference:
-            rtg = torch.tensor(rtg[:-1])
+            rtg = torch.tensor(rtg[:-1], dtype=torch.float32)
         else:
-            rtg = torch.tensor(rtg)
+            rtg = torch.tensor(rtg, dtype=torch.float32)
+        timesteps = torch.tensor(timesteps).reshape((-1, 1))
 
-        r_s_a = torch.cat([rtg.reshape(-1, 1), s.reshape(-1, self.state_dim), a.reshape(-1, self.action_dim)], dim=-1).reshape(-1)
+        #rsa = torch.cat([rtg.reshape(-1, 1), s.reshape(-1, self.state_dim), a.reshape(-1, self.action_dim)], dim=-1).reshape(-1)
+        #src = rsa[:-self.action_dim]
+        #tgt = rsa[-self.action_dim:]
 
-        #r_s_a_tokens = self.quantize(r_s_a, self.num_bins)
-        #src_tokens = r_s_a_tokens[:-self.action_dim]
-        #a_tokens = r_s_a_tokens[-self.action_dim:]
+        tgt = a.reshape((-1, self.action_dim))  # shape = [T, dim_a]
+        mask = 1 - torch.tensor(mask)  # TODO
+        #tgt_mask = mask*torch.ones((1, self.action_dim))
 
-        src = r_s_a[:-self.action_dim]
-        tgt = r_s_a[-self.action_dim:]
-        example = self.process_token_seq(id, src, tgt)
-        return example
+        train_a = tgt.clone()
+        train_a[-1] = self.action_padding_num*torch.ones(self.action_dim)
+
+        rsa = torch.cat([rtg.reshape(-1, 1), s.reshape(-1, self.state_dim), train_a], dim=-1)  # shape = [T, 1 + dim_s + dim_a]
+        #src = rsa[:-self.action_dim].reshape(-1, 1)  # shape = [1, T*(1+dim_s) + (T-1)*dim_s]
+        src = rsa  # shape = [T, 1 + dim_s + dim_a]
+        #src_mask = torch.cat([mask*torch.ones((1, 1)), mask*torch.ones((1, self.state_dim)), mask*torch.ones((1, self.action_dim))], dim=-1)
+
+        return uniq_id, src, tgt, timesteps, mask
 
     def process_trajectory(self, index):
         uniq_id, s, a, r, d, rtg, timesteps, mask = self.dataset[index]
         s = get_nparray_from_str(s)
         a = get_nparray_from_str(a)
-        #r = get_nparray_from_str(r)
-        #d = get_nparray_from_str(d)
+        r = get_nparray_from_str(r)
+        d = get_nparray_from_str(d)
         rtg = get_nparray_from_str(rtg)
-        #timesteps = get_nparray_from_str(timesteps)
-        #mask = get_nparray_from_str(mask)
-        return self.process_trajectory_from_vars(uniq_id, s, a, rtg)
-
-    def quantize(self, tensor_v_rel, num_bins):
-        q_tokens = []
-        for v_rel in tensor_v_rel:
-            try:
-                iv = int((v_rel * (num_bins - 1)).round())
-            except:
-                iv = 999
-            q_tokens.append("<bin_{}>".format(iv))
-        #q_tokens = ["<bin_{}>".format(iv) for v_rel in tensor_v_rel]
-        q_item = self.encode_text(' '.join(q_tokens), use_bpe=False)
-        return q_item
+        timesteps = get_nparray_from_str(timesteps)
+        mask = get_nparray_from_str(mask)
+        return self.process_trajectory_from_vars(uniq_id, s, a, r, d, rtg, timesteps, mask)

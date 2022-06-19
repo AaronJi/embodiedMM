@@ -197,10 +197,11 @@ class AdjustLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             construct_rdrop_sample(sample)
 
         net_output = model(**sample["net_input"])
-        loss, nll_loss, ntokens = self.compute_loss(model, net_output, sample, update_num, reduce=reduce)
-        sample_size = (
-            sample["target"].size(0) if self.sentence_avg else ntokens
-        )
+        #loss, nll_loss, ntokens = self.compute_loss(model, net_output, sample, update_num, reduce=reduce)
+        loss, nll_loss, ntokens = self.compute_loss_regression(model, net_output, sample, update_num, reduce=reduce)
+        #sample_size = (sample["target"].size(0) if self.sentence_avg else ntokens)
+        sample_size = ntokens
+
         logging_output = {
             "loss": loss.data,
             "nll_loss": nll_loss.data,
@@ -213,6 +214,26 @@ class AdjustLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             logging_output["n_correct"] = utils.item(n_correct.data)
             logging_output["total"] = utils.item(total.data)
         return loss, sample_size, logging_output
+
+    def compute_loss_regression(self, model, net_output, sample, update_num, reduce=True):
+
+        target_pred = net_output[0]
+        target_mask = sample["target_mask"]
+        target_length = sample["target_length"]
+        target = sample["target"]
+        ntokens = sample["ntokens"]
+
+        bsz, tgt_length, dim_a = target.shape
+
+        sample_size = max(ntokens, 1.0)
+
+        mse_loss = torch.sum((1.0-target_mask) * F.mse_loss(input=target_pred, target=target, reduction='none').mean(dim=-1)) / sample_size   # .view(bsz, tgt_length, dim_a)
+        #mse_loss = torch.sum(F.mse_loss(input=target_pred, target=target, reduction='none').mean(dim=-1)) / sample_size
+        loss = mse_loss
+
+        nll_loss = torch.tensor(0.0)
+
+        return loss, nll_loss, ntokens
 
     def get_lprobs_and_target(self, model, net_output, sample):
         conf = sample['conf'][:, None, None] if 'conf' in sample and sample['conf'] is not None else 1
@@ -264,7 +285,7 @@ class AdjustLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         return loss, nll_loss, ntokens
 
     def compute_accuracy(self, model, net_output, sample):
-        lprobs, target = self.get_lprobs_and_target(model, net_output, sample)
+        lprobs, target, constraint_masks = self.get_lprobs_and_target(model, net_output, sample)
         mask = target.ne(self.padding_idx)
         n_correct = torch.sum(
             lprobs.argmax(1).masked_select(mask).eq(target.masked_select(mask))

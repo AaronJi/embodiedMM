@@ -1,0 +1,208 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Universal Animal Template: unimal -->
+<mujoco model="unimal">
+  <compiler angle="degree"/>
+  <size njmax="2000" nconmax="500"/>
+  <option timestep=".005">
+    <flag filterparent="disable"/>
+  </option>
+  <!-- Common defaults to make search space tractable -->
+  <default>
+    <!-- Define motor defaults -->
+    <motor ctrlrange="-1 1" ctrllimited="true"/>
+    <!-- Define joint defaults -->
+    <default class="normal_joint">
+      <joint type="hinge" damping="1" stiffness="1" armature="1" limited="true" range="-120 120" solimplimit="0 0.99 0.01"/>
+    </default>
+    <default class="walker_joint">
+      <joint type="hinge" damping="0.2" stiffness="1" armature=".01" limited="true" range="-120 120" solimplimit="0 0.99 0.01"/>
+    </default>
+    <default class="stiff_joint">
+      <joint type="hinge" damping="5" stiffness="10" armature=".01" limited="true" solimplimit="0 0.99 0.01"/>
+    </default>
+    <default class="free">
+      <joint limited="false" damping="0" armature="0" stiffness="0"/>
+    </default>
+    <default class="growth_site">
+      <site size="1e-6 1e-6 1e-6"/>
+    </default>
+    <default class="torso_growth_site">
+      <site size="1e-6 1e-6 1e-6"/>
+    </default>
+    <default class="mirror_growth_site">
+      <site size="1e-6 1e-6 1e-6"/>
+    </default>
+    <default class="btm_pos_site">
+      <site size="1e-6 1e-6 1e-6"/>
+    </default>
+    <default class="box_face_site">
+      <site size="1e-6 1e-6 1e-6"/>
+    </default>
+    <default class="imu_vel">
+      <site type="box" size="0.05" rgba="1 0 0 1"/>
+    </default>
+    <default class="touch_site">
+      <site group="3" rgba="0 0 1 .3"/>
+    </default>
+    <default class="food_site">
+      <site material="food" size="0.15"/>
+    </default>
+    <!-- Define geom defaults -->
+    <geom type="capsule" condim="3" friction="0.7 0.1 0.1" material="self"/>
+  </default>
+  <worldbody>
+    <light diffuse="1 1 1" directional="true" exponent="1" pos="0 0 1" specular=".1 .1 .1"/>
+    <!-- <geom name="floor" type="plane" pos="0 0 0" size="50 50 1" material="grid"/> -->
+    <!-- Programatically generated xml goes here -->
+    <body name="torso/0" pos="0 0 0.75">
+      <joint name="root" type="free" class="free"/>
+      <site name="root" class="imu_vel"/>
+      <geom name="torso/0" type="sphere" size="0.1" condim="3" density="1000"/>
+      <camera name="side" pos="0 -7 2" xyaxes="1 0 0 0 1 2" mode="trackcom"/>
+      <site name="torso/0" class="growth_site" pos="0 0 0"/>
+      <site name="torso/btm_pos/0" class="btm_pos_site" pos="0 0 -0.1"/>
+      <site name="torso/touch/0" class="touch_site" size="0.11"/>
+      <site name="torso/horizontal_y/0" class="torso_growth_site" pos="-0.1 0 0"/>
+      <body name="limb/0" pos="0.1 0.0 0.0">
+        <joint name="limby/0" type="hinge" class="normal_joint" range="-45 0" pos="-0.05 0.0 0.0" axis="-0.0 1.0 0.0"/>
+        <geom name="limb/0" type="capsule" fromto="0.0 0.0 0.0 0.25 0.0 0.0" size="0.05" density="900"/>
+        <site name="limb/mid/0" class="growth_site" pos="0.15 0.0 0.0"/>
+        <site name="limb/btm/0" class="growth_site" pos="0.25 0.0 0.0"/>
+        <site name="limb/btm_pos/0" class="btm_pos_site" pos="0.25 0.0 0.0"/>
+        <site name="limb/touch/0" class="touch_site" size="0.060000000000000005" fromto="0.0 0.0 0.0 0.25 0.0 0.0" type="capsule"/>
+        <body name="limb/15" pos="0.25 0.0 -0.05">
+          <joint name="limbx/15" type="hinge" class="normal_joint" range="-45 0" pos="0.0 0.0 0.05" axis="1.0 0.0 0.0"/>
+          <joint name="limby/15" type="hinge" class="normal_joint" range="-45 0" pos="0.0 0.0 0.05" axis="0.0 1.0 0.0"/>
+          <geom name="limb/15" type="capsule" fromto="0.0 0.0 0.0 0.0 0.0 -0.45" size="0.05" density="900"/>
+          <site name="limb/mid/15" class="growth_site" pos="0.0 0.0 -0.25"/>
+          <site name="limb/btm/15" class="growth_site" pos="0.0 0.0 -0.45"/>
+          <site name="limb/btm_pos/15" class="btm_pos_site" pos="0.0 0.0 -0.5"/>
+          <site name="limb/touch/15" class="touch_site" size="0.060000000000000005" fromto="0.0 0.0 0.0 0.0 0.0 -0.45" type="capsule"/>
+        </body>
+      </body>
+      <body name="limb/10" pos="-0.07 0.0 -0.07">
+        <joint name="limby/10" type="hinge" class="normal_joint" range="-90 0" pos="0.04 0.0 0.04" axis="0.0 1.0 0.0"/>
+        <geom name="limb/10" type="capsule" fromto="0.0 0.0 0.0 -0.25 0.0 -0.25" size="0.05" density="900"/>
+        <site name="limb/mid/10" class="growth_site" pos="-0.14 0.0 -0.14"/>
+        <site name="limb/btm/10" class="growth_site" pos="-0.25 0.0 -0.25"/>
+        <site name="limb/btm_pos/10" class="btm_pos_site" pos="-0.25 0.0 -0.25"/>
+        <site name="limb/touch/10" class="touch_site" size="0.060000000000000005" fromto="0.0 0.0 0.0 -0.25 0.0 -0.25" type="capsule"/>
+        <body name="limb/12" pos="-0.14 0.0 -0.19">
+          <joint name="limby/12" type="hinge" class="normal_joint" range="-45 0" pos="0.0 0.0 0.05" axis="0.0 1.0 0.0"/>
+          <geom name="limb/12" type="capsule" fromto="0.0 0.0 0.0 0.0 0.0 -0.25" size="0.05" density="900"/>
+          <site name="limb/mid/12" class="growth_site" pos="0.0 0.0 -0.15"/>
+          <site name="limb/btm/12" class="growth_site" pos="0.0 0.0 -0.25"/>
+          <site name="limb/btm_pos/12" class="btm_pos_site" pos="0.0 0.0 -0.25"/>
+          <site name="limb/touch/12" class="touch_site" size="0.060000000000000005" fromto="0.0 0.0 0.0 0.0 0.0 -0.25" type="capsule"/>
+          <body name="limb/13" pos="0.0 0.05 -0.25">
+            <joint name="limby/13" type="hinge" class="normal_joint" range="0 60" pos="0.0 -0.05 0.0" axis="0.0 0.0 1.0"/>
+            <geom name="limb/13" type="capsule" fromto="0.0 0.0 0.0 0.0 0.35 0.0" size="0.05" density="900"/>
+            <site name="limb/mid/13" class="mirror_growth_site" pos="0.0 0.2 0.0"/>
+            <site name="limb/btm/13" class="mirror_growth_site" pos="0.0 0.35 0.0"/>
+            <site name="limb/btm_pos/13" class="btm_pos_site" pos="0.0 0.4 0.0"/>
+            <site name="limb/touch/13" class="touch_site" size="0.060000000000000005" fromto="0.0 0.0 0.0 0.0 0.35 0.0" type="capsule"/>
+            <body name="limb/16" pos="-0.05 0.35 0.0">
+              <joint name="limbx/16" type="hinge" class="normal_joint" range="0 30" pos="0.05 0.0 0.0" axis="0.0 0.0 -1.0"/>
+              <joint name="limby/16" type="hinge" class="normal_joint" range="-30 30" pos="0.05 0.0 0.0" axis="0.0 1.0 0.0"/>
+              <geom name="limb/16" type="capsule" fromto="0.0 0.0 0.0 -0.45 0.0 0.0" size="0.05" density="900"/>
+              <site name="limb/mid/16" class="mirror_growth_site" pos="-0.25 0.0 0.0"/>
+              <site name="limb/btm/16" class="mirror_growth_site" pos="-0.45 0.0 0.0"/>
+              <site name="limb/btm_pos/16" class="btm_pos_site" pos="-0.5 0.0 0.0"/>
+              <site name="limb/touch/16" class="touch_site" size="0.060000000000000005" fromto="0.0 0.0 0.0 -0.45 0.0 0.0" type="capsule"/>
+            </body>
+          </body>
+          <body name="limb/14" pos="0.0 -0.05 -0.25">
+            <joint name="limby/14" type="hinge" class="normal_joint" range="0 60" pos="0.0 0.05 0.0" axis="-0.0 0.0 -1.0"/>
+            <geom name="limb/14" type="capsule" fromto="0.0 0.0 0.0 0.0 -0.35 0.0" size="0.05" density="900"/>
+            <site name="limb/mid/14" class="mirror_growth_site" pos="0.0 -0.2 0.0"/>
+            <site name="limb/btm/14" class="mirror_growth_site" pos="0.0 -0.35 0.0"/>
+            <site name="limb/btm_pos/14" class="btm_pos_site" pos="0.0 -0.4 0.0"/>
+            <site name="limb/touch/14" class="touch_site" size="0.060000000000000005" fromto="0.0 0.0 0.0 0.0 -0.35 0.0" type="capsule"/>
+            <body name="limb/17" pos="-0.05 -0.35 0.0">
+              <joint name="limbx/17" type="hinge" class="normal_joint" range="0 30" pos="0.05 0.0 0.0" axis="0.0 0.0 -1.0"/>
+              <joint name="limby/17" type="hinge" class="normal_joint" range="-30 30" pos="0.05 0.0 0.0" axis="0.0 1.0 0.0"/>
+              <geom name="limb/17" type="capsule" fromto="0.0 0.0 0.0 -0.45 0.0 0.0" size="0.05" density="900"/>
+              <site name="limb/mid/17" class="mirror_growth_site" pos="-0.25 0.0 0.0"/>
+              <site name="limb/btm/17" class="mirror_growth_site" pos="-0.45 0.0 0.0"/>
+              <site name="limb/btm_pos/17" class="btm_pos_site" pos="-0.5 0.0 0.0"/>
+              <site name="limb/touch/17" class="touch_site" size="0.060000000000000005" fromto="0.0 0.0 0.0 -0.45 0.0 0.0" type="capsule"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <motor joint="limby/0" gear="300" name="limby/0"/>
+    <motor joint="limbx/15" gear="300" name="limbx/15"/>
+    <motor joint="limby/15" gear="150" name="limby/15"/>
+    <motor joint="limby/10" gear="150" name="limby/10"/>
+    <motor joint="limby/12" gear="300" name="limby/12"/>
+    <motor joint="limby/13" gear="300" name="limby/13"/>
+    <motor joint="limbx/16" gear="250" name="limbx/16"/>
+    <motor joint="limby/16" gear="200" name="limby/16"/>
+    <motor joint="limby/14" gear="300" name="limby/14"/>
+    <motor joint="limbx/17" gear="250" name="limbx/17"/>
+    <motor joint="limby/17" gear="200" name="limby/17"/>
+  </actuator>
+  <sensor>
+    <accelerometer name="torso_accel" site="root"/>
+    <gyro name="torso_gyro" site="root"/>
+    <velocimeter name="torso_vel" site="root"/>
+    <subtreeangmom name="unimal_am" body="torso/0"/>
+    <touch name="torso/0" site="torso/touch/0"/>
+    <touch name="limb/0" site="limb/touch/0"/>
+    <touch name="limb/15" site="limb/touch/15"/>
+    <touch name="limb/10" site="limb/touch/10"/>
+    <touch name="limb/12" site="limb/touch/12"/>
+    <touch name="limb/13" site="limb/touch/13"/>
+    <touch name="limb/16" site="limb/touch/16"/>
+    <touch name="limb/14" site="limb/touch/14"/>
+    <touch name="limb/17" site="limb/touch/17"/>
+  </sensor>
+  <!-- Add hfield assets -->
+  <asset/>
+  <!-- List of contacts to exclude -->
+  <contact>
+    <exclude name="limb/13:limb/14" body1="limb/13" body2="limb/14"/>
+  </contact>
+  <!-- Define material, texture etc -->
+  <asset>
+    <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance="0"/>
+    <material name="hfield" texture="hfield" texrepeat="1 1" texuniform="true" reflectance="0"/>
+    <material name="wall" texture="wall" texrepeat="1 1" texuniform="true" reflectance=".5"/>
+    <material name="platform" texture="platform" texrepeat="1 1" texuniform="true" reflectance=".5"/>
+    <material name="boundary" texture="boundary" texrepeat="1 1" texuniform="true" reflectance=".5"/>
+    <material name="jump" texture="jump" texrepeat="1 1" texuniform="true" reflectance=".5"/>
+    <material name="goal" rgba="1 0 0 1"/>
+    <material name="food" rgba="0 0 1 1" emission="1"/>
+    <material name="self" rgba=".7 .5 .3 1"/>
+    <material name="self_default" rgba=".7 .5 .3 1"/>
+    <material name="self_highlight" rgba="0 .5 .3 1"/>
+    <material name="effector" rgba=".7 .4 .2 1"/>
+    <material name="effector_default" rgba=".7 .4 .2 1"/>
+    <material name="effector_highlight" rgba="0 .5 .3 1"/>
+    <material name="decoration" rgba=".3 .5 .7 1"/>
+    <material name="eye" rgba="0 .2 1 1"/>
+    <material name="target" rgba=".6 .3 .3 1"/>
+    <material name="target_default" rgba=".6 .3 .3 1"/>
+    <material name="target_highlight" rgba=".6 .3 .3 .4"/>
+    <material name="site" rgba=".5 .5 .5 .3"/>
+    <material name="ball" texture="ball"/>
+  </asset>
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" rgb1="0.1 0.1 0.1" rgb2="0.1 0.1 0.1" width="300" height="300" mark="edge" markrgb="0.2 0.2 0.2"/>
+    <texture name="hfield" type="2d" builtin="checker" rgb1="0.1 0.1 0.1" rgb2="0.1 0.1 0.1" width="300" height="300"/>
+    <texture name="wall" type="2d" builtin="flat" rgb1="0.9 0.7 0" rgb2="0.9 0.7 0" width="300" height="300"/>
+    <texture name="platform" type="2d" builtin="flat" rgb1="0.3 0 0.8" rgb2="0.3 0 0.8" width="300" height="300"/>
+    <texture name="boundary" type="2d" builtin="flat" rgb1="0.3 0.3 0.3" rgb2="0.3 0.3 0.3" width="300" height="300"/>
+    <texture name="jump" type="2d" builtin="flat" rgb1="0.3 0.3 0.3" rgb2="0.3 0.3 0.3" width="300" height="300"/>
+    <texture name="skybox" type="skybox" builtin="flat" rgb1="0.8 1 1" rgb2="0.8 1 1" width="800" height="800"/>
+    <texture name="ball" builtin="checker" mark="cross" width="151" height="151" rgb1="0.1 0.1 0.1" rgb2="0.9 0.9 0.9" markrgb="1 1 1"/>
+  </asset>
+  <visual>
+    <headlight ambient=".4 .4 .4" diffuse=".8 .8 .8" specular="0.1 0.1 0.1"/>
+    <map znear=".01"/>
+    <quality shadowsize="2048"/>
+  </visual>
+</mujoco>
