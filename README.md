@@ -34,3 +34,9 @@ sh run_scripts/pretraining/pretrain_ofa_base.sh
 ```
 sh run_scripts/pretraining/pretrain_ofa_trial.sh
 ```
+
+### metamorph example
+```
+cd metamorph
+python tools/train_ppo.py --cfg ./configs/ft.yaml
+```
