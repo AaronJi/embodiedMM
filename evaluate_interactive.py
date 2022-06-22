@@ -104,13 +104,15 @@ def main(cfg: DictConfig, **kwargs):
     device = 'cpu'
     model.to(device=device)
 
-    criterion = task.build_criterion('adjust_label_smoothed_cross_entropy')
+    #print(cfg.criterion._name)
+    #criterion = task.build_criterion('adjust_label_smoothed_cross_entropy')
+    criterion = task.build_criterion(saved_cfg.criterion)
 
     # Initialize generator
     generator = task.build_generator(models, cfg.generation)
     tokenizer = Tokenizer()
 
-    num_eval_episodes = 3
+    num_eval_episodes = 30
     outputs_list = []
 
     env_targets = [3000]
@@ -307,6 +309,7 @@ def get_ref_result(task, models, sample, tokenizer, criterion, get_first_tokens=
     return torch.tensor(np.array(action_pred))
 
 
+
 def evaluate_episode_rtg(
         task,
         models,
@@ -317,15 +320,23 @@ def evaluate_episode_rtg(
         target_return=None,
         mode='normal',
     ):
+
+
     gamma = 1.0
+    #gamma = task.cfg.gamma
+
     #eval_steps = task.max_ep_len
     eval_steps = 1000
 
-    #state_lb = torch.from_numpy(task.state_bounds[0]).to(device=device)
-    #state_ub = torch.from_numpy(task.state_bounds[1]).to(device=device)
-    #action_lb = torch.from_numpy(task.action_bounds[0]).to(device=device)
-    #action_ub = torch.from_numpy(task.action_bounds[1]).to(device=device)
+    state_mean = task.state_mean
+    state_std = task.state_std
+    action_mean = task.action_mean
+    action_std = task.action_std
 
+    # state_lb = torch.from_numpy(task.state_bounds[0]).to(device=device)
+    # state_ub = torch.from_numpy(task.state_bounds[1]).to(device=device)
+    # action_lb = torch.from_numpy(task.action_bounds[0]).to(device=device)
+    # action_ub = torch.from_numpy(task.action_bounds[1]).to(device=device)
     state_lb = task.state_bounds[0]
     state_ub = task.state_bounds[1]
     action_lb = task.action_bounds[0]
@@ -336,7 +347,16 @@ def evaluate_episode_rtg(
         state = state + np.random.normal(0, 0.1, size=state.shape)
 
     padding_to_full_window = True
-    generate_action_once = False
+    generate_action_once = True
+
+    if padding_to_full_window:
+        state_padding_num = task.cfg.state_padding_num
+        action_padding_num = task.cfg.action_padding_num
+        return_padding_num = 1.0
+    else:
+        state_padding_num = None
+        action_padding_num = None
+        return_padding_num = None
 
     # we keep all the histories on the device
     # note that the latest action and reward will be "padding"
@@ -352,9 +372,39 @@ def evaluate_episode_rtg(
     rewards = np.zeros((0, 1))
     returns = target_return * np.ones((1, 1))
     timesteps = np.zeros((1, 1))
+    masks = np.ones((1, 1))
 
     ep_return = target_return
     episode_return, episode_length = 0, 0
+
+    def scale_vars(states, actions, returns):
+        if task.cfg.scale_way == 'normalize':
+            states_rel = (states - state_mean)/state_std
+            actions_rel = (actions - action_mean) / action_std
+        else:
+            states_rel = (states - state_lb)/(state_ub - state_lb)  # .detach().cpu().numpy()
+            actions_rel = (actions - action_lb) / (action_ub - action_lb)
+        returns_rel = returns/ep_return
+
+        return states_rel, actions_rel, returns_rel
+
+    def rescale_vars(action_rel):
+        if task.cfg.scale_way == 'normalize':
+            action = action_rel*action_std + action_mean
+        else:
+            action = action_lb + action_rel * (action_ub - action_lb)
+
+        return action
+
+    def reform_window_len(data, window_len, padding_num=None):
+
+        window_data = data[-window_len:]
+        # window_data = torch.cat([torch.zeros((window_len - window_data.shape[0], window_data.shape[1]), device=window_data.device), window_data], dim=0).to(dtype=torch.float32)
+
+        # padding
+        if padding_num is not None:
+            window_data = padding_to_window(window_data, window_len, padding_num=padding_num)
+        return window_data
 
     for t in range(eval_steps):
         id = task.env.name + '-t=' + str(t) + '-eval'
@@ -362,35 +412,64 @@ def evaluate_episode_rtg(
 
         # add padding
         #actions = torch.cat([actions, 0 * torch.ones((1, task.env.action_dim), device=device)], dim=0)
-        actions = np.concatenate([actions, 0 * np.ones((1, task.env.action_dim))], axis=0)
-
-        states_rel = (states - state_lb)/(state_ub - state_lb)  # .detach().cpu().numpy()
-        actions_rel = (actions - action_lb) / (action_ub - action_lb)
-        returns_rel = returns/ep_return
+        actions = np.concatenate([actions, action_padding_num * np.ones((1, task.env.action_dim))], axis=0)
 
         # get recent window
-        if padding_to_full_window:
-            state_padding_num = task.cfg.state_padding_num
-            action_padding_num = task.cfg.action_padding_num
-            return_padding_num = 1.0
-        else:
-            state_padding_num = None
-            action_padding_num = None
-            return_padding_num = None
-        window_states_rel = reform_window_len(states_rel, task.cfg.window_len, padding_num=state_padding_num)
-        window_actions_rel = reform_window_len(actions_rel, task.cfg.window_len, padding_num=action_padding_num)
-        window_returns_rel = reform_window_len(returns_rel, task.cfg.window_len, padding_num=return_padding_num)
+
+        window_states = reform_window_len(states, task.cfg.window_len, padding_num=state_padding_num)
+        window_actions = reform_window_len(actions, task.cfg.window_len, padding_num=action_padding_num)
+        window_returns = reform_window_len(returns, task.cfg.window_len, padding_num=returns[0, 0])
+        window_rewards = reform_window_len(rewards, task.cfg.window_len, padding_num=0)
+        window_timesteps = reform_window_len(timesteps, task.cfg.window_len, padding_num=0)
+        window_masks = reform_window_len(masks, task.cfg.window_len, padding_num=0).reshape(-1)
 
         #print(window_states_rel.shape)
         #print(window_actions_rel.shape)
         #print(window_rtg_rel.shape)
+        #print(returns)
+        #print(window_returns)
+        #print(ep_return)
+
+
+        window_states_rel, window_actions_rel, window_returns_rel = scale_vars(window_states, window_actions, window_returns)
+        #print(window_states, window_states_rel, state_mean)
+        #print(window_actions, window_actions_rel, action_mean)
+        #print(window_returns, window_returns_rel)
+        #print('&&&&')
+
 
         if generate_action_once:
-            example = task.datasets['valid'].process_trajectory_from_vars(id, torch.tensor(window_states_rel), torch.tensor(window_actions_rel), torch.tensor(window_returns_rel), inference=True)
+            #print(window_masks)
+            #window_masks[-19:-1] = 1
+            #print(window_masks)
+            window_masks = np.ones((20))
+            uniq_id, src, tgt, timesteps, mask = task.datasets['valid'].process_trajectory_from_vars(id, torch.tensor(window_states_rel), torch.tensor(window_actions_rel), torch.tensor(window_rewards), None, torch.tensor(window_returns_rel), torch.tensor(window_timesteps), torch.tensor(window_masks), inference=True)
+            example = task.datasets['valid'].process_train_seq(uniq_id, src, tgt, timesteps, mask)
             sample = task.datasets['valid'].collater([example])
 
-            action_pred_rel = get_result(task, generator, models, sample, tokenizer, get_first_tokens=task.action_dim)
-            # action_pred_rel = get_ref_result(task, models, sample, tokenizer, criterion, get_first_tokens=task.action_dim)
+            #print(sample['net_input']["sources"])
+            #print(sample['net_input']["source_lengths"])
+            #print(sample['net_input']["source_masks"])
+            #print(sample['net_input']["source_times"])
+            #print(sample['net_input']["prev_output_tokens"])
+            #print('&&&&')
+            #print(sample['net_input']["sources"].shape)
+            #print(sample['net_input']["source_masks"].shape)
+            #print(sample["target"])
+            #print(sample["target_length"])
+            #print(sample["target_mask"])
+
+
+            #action_pred_rel = get_result(task, generator, models, sample, tokenizer, get_first_tokens=task.action_dim)
+            #action_pred_rel = get_ref_result(task, models, sample, tokenizer, criterion, get_first_tokens=task.action_dim)
+            net_output = models[0](**sample['net_input'])
+            #print('&&&&')
+            #print(net_output[0].shape)
+            #print(net_output[0])
+            action_pred_rel = net_output[0][0][-1]
+            #print(action_pred_rel.shape)
+            #print(action_pred_rel)
+            #exit(5)
             action_pred_rel = action_pred_rel.detach().cpu().numpy()
         else:
             action_pred_rel = []
@@ -420,9 +499,9 @@ def evaluate_episode_rtg(
             #action_pred_rel = torch.tensor(np.array(action_pred_rel))
             action_pred_rel = np.array(action_pred_rel)
 
-        print(action_pred_rel)
+        #print(action_pred_rel)
         #exit(5)
-        action_pred = action_lb + action_pred_rel * (action_ub - action_lb)
+        action_pred = rescale_vars(action_pred_rel)
         #actions[-1] = action_pred
         #action = action_pred.detach().cpu().numpy()
 
@@ -442,6 +521,7 @@ def evaluate_episode_rtg(
         rewards = np.concatenate([rewards, np.array(rewards).reshape((-1, 1))])
         returns = np.concatenate([returns, np.array(target_return).reshape((-1, 1))])
         timesteps = np.concatenate([timesteps, (t + 1)*np.ones((1, 1))])
+        masks = np.concatenate([masks, np.ones((1, 1))])
 
         episode_return += reward
         episode_length += 1
@@ -453,15 +533,7 @@ def evaluate_episode_rtg(
     return episode_return, episode_length
 
 
-def reform_window_len(data, window_len, padding_num=None):
 
-    window_data = data[-window_len:, :]
-    #window_data = torch.cat([torch.zeros((window_len - window_data.shape[0], window_data.shape[1]), device=window_data.device), window_data], dim=0).to(dtype=torch.float32)
-
-    # padding
-    if padding_num is not None:
-        window_data = padding_to_window(window_data, window_len, padding_num=padding_num)
-    return window_data
 
 def padding_to_window(win_data, win_len, padding_num=None, batch_mode=False):
 

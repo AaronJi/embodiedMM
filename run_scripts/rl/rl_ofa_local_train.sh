@@ -10,34 +10,39 @@ bpe_dir=../../utils/BPE
 user_dir=../../ofa_module
 
 env=hopper
-dataset=medium-replay
+dataset=medium-replay   #medium-replay  # expert # medium
 data_dir=../../dataset/gym_data
 data=${data_dir}/${env}-${dataset}-v2.tsv,${data_dir}/${env}-${dataset}-v2.tsv
 restore_file=./checkpoints/ofa_base.pt
 selected_cols=0,1,2,3,4,5,6,7
+# save_dir=/data/output1/ofa_workspace/checkpoints/train_for_${task}_hopper_w_pretrain
 
 task=mujoco_control_task
 arch=ofa_traj_base
 criterion=adjust_label_smoothed_cross_entropy
 label_smoothing=0.0
 lr=1e-4
-max_epoch=2
+max_epoch=1
 warmup_ratio=0.01
-batch_size=64
+batch_size=32
 update_freq=1
 resnet_drop_path_rate=0.0
 encoder_drop_path_rate=0.1
 decoder_drop_path_rate=0.1
 dropout=0.1
 attention_dropout=0.0
-max_src_length=80
-max_tgt_length=30
+max_src_length=800
+max_tgt_length=300
 num_bins=1000
 patch_image_size=384
 sample_patch_num=196
 max_image_size=512
 
-save_path=./checkpoints
+log_dir=./logs
+save_dir=./checkpoints
+mkdir -p $log_dir $save_dir
+log_file=${log_dir}/${env}"_"${dataset}"_"${max_epoch}"_"${warmup_ratio}"_"${drop_worst_after}".log"
+save_path=${save_dir}/${env}"_"${dataset}"_"${max_epoch}"_"${warmup_ratio}"_"${drop_worst_after}
 
 python ../../train.py \
   $data \
@@ -85,15 +90,15 @@ python ../../train.py \
   --sample-patch-num=${sample_patch_num} \
   --max-image-size=${max_image_size} \
   --cpu \
-  --freeze-encoder-embedding \
-  --freeze-decoder-embedding \
   --ddp-backend=no_c10d \
   --use-bmuf \
   --fp16-scale-window=128 \
-  --num-workers=0
+  --num-workers=0 > ${log_file} 2>&1
 
 # --restore-file=${restore_file} \
 # --freeze-encoder-embedding \
 # --freeze-decoder-embedding \
 # --ddp-backend=no_c10d \
 # --use-bmuf \
+# --drop-worst-ratio=${drop_worst_ratio} \
+# --drop-worst-after=${drop_worst_after} \

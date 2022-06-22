@@ -203,7 +203,7 @@ class AdjustLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         sample_size = ntokens
 
         logging_output = {
-            "loss": loss.data,
+            "loss": 1000*loss.data,
             "nll_loss": nll_loss.data,
             "ntokens": sample["ntokens"],
             "nsentences": sample["nsentences"],
@@ -225,7 +225,6 @@ class AdjustLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             print(src)
             print(tgt)
         print('&' * 30)
-
         '''
 
 
@@ -242,6 +241,29 @@ class AdjustLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         mse_loss = torch.sum((1.0-target_mask) * F.mse_loss(input=target_pred, target=target, reduction='none').mean(dim=-1)) / sample_size   # .view(bsz, tgt_length, dim_a)
         #mse_loss = torch.sum(F.mse_loss(input=target_pred, target=target, reduction='none').mean(dim=-1)) / sample_size
         loss = mse_loss
+
+        #print('&' * 30)
+        #print(sample['id'])
+        #print('&&&&& source_eff=%f, target_eff=%f, loss=%f' % (torch.sum(1-sample['net_input']['source_masks']).data, torch.sum(1-sample['target_mask']).data, loss.data))
+        #print('&' * 30)
+
+        '''
+        print('loss regression:')
+        print(target_pred.shape)
+        print(target.shape)
+        print(target_mask.shape)
+        print(target_pred)
+        print(target)
+        print(target_mask)
+        print(F.mse_loss(input=target_pred, target=target, reduction='none').shape)
+        print(mse_loss)       
+        
+        if(mse_loss.data <= 1.0e-5):
+            print('too small!')
+            print(mse_loss)
+            exit(5) 
+        '''
+
 
         nll_loss = torch.tensor(0.0)
 

@@ -746,7 +746,7 @@ class Trainer(object):
         logging_outputs, sample_size, ooms = [], 0, 0
         for i, sample in enumerate(samples):  # delayed update loop
             sample, is_dummy_batch = self._prepare_sample(sample)
-
+            #print('$$$$$$$$$ batch = %i $$$$$$$$$' % i)
             def maybe_no_sync():
                 """
                 Whenever *samples* contains more than one mini-batch, we

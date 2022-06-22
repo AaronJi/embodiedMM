@@ -123,7 +123,7 @@ class PPO:
                 self._log_stats(cur_iter)
                 self.save_model()
             print('iter %i train finished, cost time %f seconds, total time %f seconds passed' % (cur_iter, time.time() - iter_start, time.time() - self.start))
-            exit(5)
+            #exit(5)
         print("Finished Training: {}".format(self.file_prefix))
 
     def train_on_batch(self, cur_iter):

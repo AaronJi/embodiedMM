@@ -186,6 +186,7 @@ class GymDataset(OFADataset):
         if self.mask_length == "subword" and self.replace_length not in [0, 1]:
             raise ValueError(f"if using subwords, use replace-length=1 or 0")
 
+        '''
         self.mask_idx = src_dict.index("<mask>")
         self.mask_whole_word = (
             get_whole_word_mask(self.bpe, self.src_dict)
@@ -248,12 +249,17 @@ class GymDataset(OFADataset):
             T.ToTensor(),
             T.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], max_image_size=max_image_size)
         ])
+        
+        '''
+
 
         #self.device = 'cpu'
         self.state_dim = 11
         self.action_dim = 3
-        self.state_padding_num = 0.5
-        self.action_padding_num = 0.5
+        #self.state_padding_num = 0.5
+        #self.action_padding_num = 0.5
+        self.state_padding_num = 0.0
+        self.action_padding_num = 0.0
 
         return
 
@@ -345,3 +351,41 @@ class GymDataset(OFADataset):
         mask = get_nparray_from_str(mask)
 
         return self.process_trajectory_from_vars(uniq_id, s, a, r, d, rtg, timesteps, mask)
+
+if __name__ == '__main__':
+    from data.file_dataset import FileDataset
+
+    env = 'hopper'
+    #dataset = 'expert'
+    dataset = 'medium-replay'
+    data_dir = "/Users/jiluo-wendu/git/myGit/embodiedMM/dataset/gym_data"
+    file_path = "%s/%s-%s-v2.tsv" % (data_dir, env, dataset)
+    selected_cols = '0,1,2,3,4,5,6,7'
+    separator = '"\t"'
+
+    print(file_path)
+    dataset = FileDataset(file_path, selected_cols, separator=separator)
+
+    bpe = {}
+
+    from fairseq.data import Dictionary
+    src_dict = Dictionary()
+    tgt_dict = Dictionary()
+    gym_dataset = GymDataset(
+        'test',
+        dataset,
+        bpe,
+        src_dict
+    )
+
+    print(len(gym_dataset))
+    for index in range(len(gym_dataset)):
+
+        sample = gym_dataset[index]
+        print(sample)
+
+
+
+
+
+

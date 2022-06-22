@@ -1245,6 +1245,7 @@ class TrajTransformerDecoder(FairseqIncrementalDecoder):
     def forward(
         self,
         prev_output_tokens,
+        source_masks: Optional[torch.Tensor] = None,
         code_masks: Optional[torch.Tensor] = None,
         encoder_out: Optional[Dict[str, List[Tensor]]] = None,
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
@@ -1276,6 +1277,7 @@ class TrajTransformerDecoder(FairseqIncrementalDecoder):
 
         x, extra = self.extract_features(
             prev_output_tokens,
+            source_masks=source_masks,
             code_masks=code_masks,
             encoder_out=encoder_out,
             incremental_state=incremental_state,
@@ -1293,6 +1295,7 @@ class TrajTransformerDecoder(FairseqIncrementalDecoder):
     def extract_features(
         self,
         prev_output_tokens,
+        source_masks: Optional[torch.Tensor],
         code_masks: Optional[torch.Tensor],
         encoder_out: Optional[Dict[str, List[Tensor]]],
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
@@ -1302,6 +1305,7 @@ class TrajTransformerDecoder(FairseqIncrementalDecoder):
     ):
         return self.extract_features_scriptable(
             prev_output_tokens,
+            source_masks,
             code_masks,
             encoder_out,
             incremental_state,
@@ -1319,6 +1323,7 @@ class TrajTransformerDecoder(FairseqIncrementalDecoder):
     def extract_features_scriptable(
         self,
         prev_output_tokens,  # shape = [bsz, tgt_tokens_len, dim_a]
+        source_masks: Optional[torch.Tensor],
         code_masks: Optional[torch.Tensor],
         encoder_out: Optional[Dict[str, List[Tensor]]],
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
@@ -1418,9 +1423,19 @@ class TrajTransformerDecoder(FairseqIncrementalDecoder):
         x = x.transpose(0, 1)  # shape = [window_len, bsz, emb_dim]
 
         self_attn_padding_mask: Optional[Tensor] = None
-        if self.cross_self_attention or prev_output_tokens.eq(self.padding_idx).any():
-            self_attn_padding_mask = prev_output_tokens.eq(self.padding_idx)
-
+        #if self.cross_self_attention or prev_output_tokens.eq(self.padding_idx).any():
+        #    self_attn_padding_mask = prev_output_tokens.eq(self.padding_idx)
+        # TODO
+        #print('@' * 50)
+        #print(source_masks)
+        #print(source_masks.shape)
+        #print(source_masks.any())
+        if self.cross_self_attention or source_masks.any():
+            self_attn_padding_mask = source_masks
+            #print(prev_output_tokens.shape)
+            #print(self_attn_padding_mask.shape)
+            #print('@'*50)
+        #exit(8)
         # decoder layers
         attn: Optional[Tensor] = None
         inner_states: List[Optional[Tensor]] = [x]

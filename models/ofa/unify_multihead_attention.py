@@ -355,8 +355,19 @@ class MultiheadAttention(nn.Module):
             attn_weights += self_attn_mask.contiguous().view(bsz * self.num_heads, tgt_len, src_len)
 
         if key_padding_mask is not None:
+            #print('&&&&&')
+            #print(attn_weights.shape)
             # don't attend to padding symbols
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
+            #print(attn_weights.shape)
+            #print('&&&&&')
+            #print(key_padding_mask.shape)
+            #print(key_padding_mask.unsqueeze(1).shape)
+            #print(key_padding_mask.unsqueeze(1).unsqueeze(2).shape)
+            #attn_weights = attn_weights.masked_fill(key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool), float("-inf"),)
+            #print(attn_weights.shape)
+            #print('&&&&&')
+            #exit(5)
             if not is_tpu:
                 attn_weights = attn_weights.masked_fill(
                     key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool),

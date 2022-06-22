@@ -101,6 +101,7 @@ class TrajectoryOFAModel(TrajTransformerModel):
 
         x, extra = self.decoder(
             prev_output_tokens,
+            source_masks=source_masks,
             code_masks=code_masks,
             encoder_out=encoder_out,
             features_only=features_only,

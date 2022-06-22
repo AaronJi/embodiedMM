@@ -110,11 +110,11 @@ class MujocoControlConfig(OFAConfig):
         metadata={"help": "window moving step size"},
     )
     state_padding_num: float = field(
-        default=0.5,
+        default=0.0,  # 0.5
         metadata={"help": "state padding number"},
     )
     action_padding_num: float = field(
-        default=0.5,
+        default=0.0,  # 0.5
         metadata={"help": "action padding number"},
     )
     extract_way: str = field(
@@ -122,7 +122,7 @@ class MujocoControlConfig(OFAConfig):
         metadata={"help": "way of window generation: all, full or rand"},
     )
     scale_way: str = field(
-        default='minmax',
+        default='normalize',  # 'minmax'
         metadata={"help": "scale method of state and action: minmax or normalize"},
     )
     get_stat_from_data: bool = field(
@@ -371,24 +371,24 @@ class MujocoControlTask(OFATask):
             for t0 in range(t0_start, t0_end, moving_window_step):
                 #print('i_traj=%i, ti=%i' % (i_traj, ti))
                 s, a, r, d, rtg, timesteps, mask = self.extact_traj_window(traj, t0)
+                if self.cfg.scale_way == 'minmax':
+                    if not if_array_in_bounds(s, [0.0, 1.0]):
+                        print('state out of bound, skip')
+                        continue
 
-                if not if_array_in_bounds(s, [0.0, 1.0]):
-                    print('state out of bound, skip')
-                    continue
+                    if not if_array_in_bounds(a, [0.0, 1.0]):
+                        print('action out of bound, skip')
+                        continue
 
-                if not if_array_in_bounds(a, [0.0, 1.0]):
-                    print('action out of bound, skip')
-                    continue
-
-                if not if_array_in_bounds(rtg, [0.0, 1.0]):
-                    print('rtg out of bound, skip')
-                    print(rtg)
-                    continue
+                    if not if_array_in_bounds(rtg, [0.0, 1.0]):
+                        print('rtg out of bound, skip')
+                        print(rtg)
+                        continue
 
                 uniq_id = '%s-traj%i-time%i' % (file_path.split('.')[-2], i_traj, t0)
                 #example = self.process_pure_trajectory(torch.tensor(s), torch.tensor(a), torch.tensor(rtg[:,:-1,:]), uniq_id)
                 gym_data.append((uniq_id, s, a, r, d, rtg, timesteps, mask))
-            #if i_traj > 200:
+            #if i_traj > 500:
             #    break
 
         return gym_data
@@ -423,11 +423,13 @@ class MujocoControlTask(OFATask):
             rtg_min = min(0.0, np.min(rtg))
             #rtg_min = np.min(rtg)
             #rtg_max = np.min(discount_cumsum(traj['rewards'], gamma=self.cfg.gamma))
-
             #rtg_max = np.max(rtg)
             rtg_max = np.max(discount_cumsum(traj['rewards'], gamma=self.cfg.gamma))
-
             rtg = (rtg - rtg_min)/(rtg_max - rtg_min)
+        else:
+            rtg_min = min(0.0, np.min(rtg))
+            rtg_max = np.max(discount_cumsum(traj['rewards'], gamma=self.cfg.gamma))
+            rtg = (rtg - rtg_min) / (rtg_max - rtg_min)
 
         # padding and state + reward normalization
         rtg_padding_num = float(rtg[:, 0, 0])
@@ -437,6 +439,8 @@ class MujocoControlTask(OFATask):
         if self.cfg.scale_way == 'normalize':
             s = (s - self.state_mean) / self.state_std
         a = np.concatenate([self.cfg.action_padding_num*np.ones((1, self.cfg.window_len - tlen, self.action_dim)), a], axis=1)
+        if self.cfg.scale_way == 'normalize':
+            a = (a - self.action_mean) / self.action_std
         r = np.concatenate([np.zeros((1, self.cfg.window_len - tlen, 1)), r], axis=1)
         d = np.concatenate([np.ones((1, self.cfg.window_len - tlen)) * 2, d], axis=1)
         rtg = np.concatenate([rtg_padding_num*np.ones((1, self.cfg.window_len - tlen, 1)), rtg], axis=1) # / self.scale
@@ -512,9 +516,102 @@ class MujocoControlTask(OFATask):
             poisson_lambda=self.cfg.poisson_lambda,
             replace_length=self.cfg.replace_length
         )
-
+        #self.check_data()
+        #self.check_data_shape()
         return
 
+    def print_model_params(self, model):
+        import torch
+        print('&'*50)
+        for name, parameters in model.named_parameters():
+            #print(name, ':', parameters.size())
+            print(name, ':', torch.norm(parameters))
+        print('&' * 50)
+        return
+
+    def check_data(self):
+        split = 'valid'
+        check_dataset = self.datasets[split]
+        for index in range(len(check_dataset)):
+            sample = check_dataset[index]
+            #print(index, sample['id'])
+            index_base = 3
+            traj_num = int(sample['id'].split('-')[index_base][4:])
+            time_num = int(sample['id'].split('-')[index_base+1][4:])
+            #print(traj_num, time_num)
+
+            #if (traj_num == 453 and time_num > 140) or traj_num >= 454:
+            check_traj = 453
+            check_traj = 134
+            #if traj_num >= 453:
+            if traj_num == check_traj:
+                print(sample['id'])
+                print(sample['source'])
+                print(sample['source_mask'])
+                print(sample['prev_output_tokens'])
+                print(sample['target'])
+                print(sample['target_mask'])
+                print(sample['source_time'].reshape(-1))
+
+            if traj_num > check_traj:
+                exit(5)
+        exit(4)
+        # '/dataset/gym_data/hopper-medium-replay-v2-traj453-time140']
+
+        return
+    def check_data_shape(self):
+        split = 'valid'
+        check_dataset = self.datasets[split]
+        print(len(check_dataset))
+        #print(check_dataset['0'])
+
+        for index in range(len(check_dataset)):
+            sample = check_dataset[index]
+
+            '''
+            print(sample['id'])
+            print(sample['source'])
+            print(sample['source_mask'])
+            print(sample['prev_output_tokens'])
+            print(sample['target'])
+            print(sample['target_mask'])
+            print(sample['source_time'])
+            exit(3)
+            '''
+
+            print(index, sample['id'])
+            print('source shape is %s, target shape is %s, prev target shape is %s' % (sample['source'].shape == (20, 15), sample['target'].shape == (20, 3), sample['prev_output_tokens'].shape == (20, 3)))
+            print('source mask shape is %s, target mask shape is %s, details: %s, %s' % (sample['source_mask'].shape[0]== 20, sample['target_mask'].shape[0] == 20, sample['source_mask'].shape, sample['target_mask'].shape))
+            print('masks: %s, %s' % ((1-sample['source_mask']).any(), (1 - sample['target_mask']).any()))
+            #print((1-sample['source_mask']).any())
+            #print((1 - sample['target_mask']).any())
+
+            if sample['source'].shape != (20, 15) or sample['target'].shape != (20, 3) or sample['prev_output_tokens'].shape != (20, 3) or sample['source_mask'].shape[0] != 20 or sample['target_mask'].shape[0] == 20 != 20:
+                print('shape error!')
+                print(sample['source'].shape != (20, 15))
+                print(sample['target'].shape != (20, 3))
+                print(sample['prev_output_tokens'].shape != (20, 3))
+                print(sample['source_mask'].shape[0] != 20)
+                print(sample['target_mask'].shape[0] != 20)
+
+
+                print(sample['id'])
+                print(sample['source'].shape)
+                print(sample['source_mask'].shape)
+                print(sample['target'].shape)
+                print(sample['target_mask'].shape)
+                print(sample['prev_output_tokens'].shape)
+
+                exit(2)
+            if not ((1-sample['source_mask']).any() and (1 - sample['target_mask']).any()):
+                print('mask error!')
+                print(sample['id'])
+                print(sample['source_mask'])
+                print(sample['target_mask'])
+
+                exit(2)
+        exit(2)
+        return
 
     def train_step(
         self, sample, model, criterion, optimizer, update_num, ignore_grad=False, **extra_kwargs
@@ -541,7 +638,12 @@ class MujocoControlTask(OFATask):
         """
         import torch
         from fairseq.optim.amp_optimizer import AMPOptimizer
-
+        #print(sample['id'])
+        #print(sample['net_input']['sources'])
+        #print(sample['target'])
+        #print('&&&&& source_eff=%f, target_eff=%f' % (torch.sum(1 - sample['net_input']['source_masks']).data, torch.sum(1 - sample['target_mask']).data))
+        #print('update_num=%i' % update_num)
+        #self.print_model_params(model)
         model.train()
         model.set_num_updates(update_num)
         with torch.autograd.profiler.record_function("forward"):

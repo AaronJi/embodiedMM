@@ -10,16 +10,22 @@ user_dir=../../ofa_module
 bpe_dir=../../utils/BPE
 
 env=hopper
-dataset=medium-replay
+dataset=medium-replay   #medium-replay  # expert # medium
 data_dir=../../dataset/gym_data
-data=${data_dir}/${env}-${dataset}-v2-small.tsv
+data=${data_dir}/${env}-${dataset}-v2.tsv
 
-#data=../../dataset/caption_data/caption_test.tsv
+save_dir=./checkpoints
+max_epoch=1
+warmup_ratio=0.01
+
 path=../../run_scripts/rl/checkpoints/checkpoint_last.pt
+path=${save_dir}/${env}"_"${dataset}"_"${max_epoch}"_"${warmup_ratio}"_"${drop_worst_after}/checkpoint_last.pt
+
 result_path=../../results/rl
 selected_cols=1,4,2
 split='test'
 task=mujoco_control_task
+criterion=adjust_label_smoothed_cross_entropy
 
 #python3 -m torch.distributed.launch --nproc_per_node=${GPUS_PER_NODE} --master_port=${MASTER_PORT} ../../evaluate_interactive.py \
 python ../../evaluate_interactive.py \
@@ -27,6 +33,7 @@ python ../../evaluate_interactive.py \
     --path=${path} \
     --user-dir=${user_dir} \
     --task=${task} \
+    --criterion=${criterion} \
     --batch-size=16 \
     --log-format=simple --log-interval=10 \
     --seed=7 \
