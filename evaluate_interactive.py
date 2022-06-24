@@ -131,9 +131,8 @@ def main(cfg: DictConfig, **kwargs):
                     target_return=tar,  #  / task.scale
                     mode='normal',
                 )
-        returns.append(ret)
-        lengths.append(length)
-
+            returns.append(ret)
+            lengths.append(length)
         output = {
             f'target_{tar}_return_mean': np.mean(returns),
             f'target_{tar}_return_std': np.std(returns),
@@ -197,9 +196,6 @@ def main(cfg: DictConfig, **kwargs):
     return
 
 
-
-
-
 def get_symbols_to_strip_from_output(generator):
     if hasattr(generator, "symbols_to_strip_from_output"):
         return generator.symbols_to_strip_from_output
@@ -257,15 +253,10 @@ def get_result(task, generator, models, sample, tokenizer, get_first_tokens=None
 
 def get_ref_result(task, models, sample, tokenizer, criterion, get_first_tokens=None):
     model = models[0]
-    #print(sample)
-    net_output = model(**sample['net_input'])
-    #print(net_output)
 
+    net_output = model(**sample['net_input'])
     lprobs, target, constraint_masks = criterion.get_lprobs_and_target(model, net_output, sample)
-    #print(sample['target'])
-    #print(lprobs.shape, target.shape)
-    #print(target)
-    #exit(5)
+
     if on_local:
         base_index = 0
     else:
@@ -309,7 +300,6 @@ def get_ref_result(task, models, sample, tokenizer, criterion, get_first_tokens=
     return torch.tensor(np.array(action_pred))
 
 
-
 def evaluate_episode_rtg(
         task,
         models,
@@ -328,15 +318,11 @@ def evaluate_episode_rtg(
     #eval_steps = task.max_ep_len
     eval_steps = 1000
 
+    # statistics
     state_mean = task.state_mean
     state_std = task.state_std
     action_mean = task.action_mean
     action_std = task.action_std
-
-    # state_lb = torch.from_numpy(task.state_bounds[0]).to(device=device)
-    # state_ub = torch.from_numpy(task.state_bounds[1]).to(device=device)
-    # action_lb = torch.from_numpy(task.action_bounds[0]).to(device=device)
-    # action_ub = torch.from_numpy(task.action_bounds[1]).to(device=device)
     state_lb = task.state_bounds[0]
     state_ub = task.state_bounds[1]
     action_lb = task.action_bounds[0]
@@ -347,6 +333,7 @@ def evaluate_episode_rtg(
         state = state + np.random.normal(0, 0.1, size=state.shape)
 
     padding_to_full_window = True
+    pred_is_cont = True
     generate_action_once = True
 
     if padding_to_full_window:
@@ -360,13 +347,6 @@ def evaluate_episode_rtg(
 
     # we keep all the histories on the device
     # note that the latest action and reward will be "padding"
-
-    #states = torch.from_numpy(state).reshape(1, task.env.state_dim).to(device=device, dtype=torch.float32)
-    #actions = 0*torch.ones((0, task.env.action_dim), device=device, dtype=torch.float32)
-    #rewards = 0*torch.ones((0, 1), device=device, dtype=torch.float32)
-    #returns = torch.tensor(target_return).reshape(1, 1).to(device=device, dtype=torch.float32)
-    #timesteps = torch.tensor(0, device=device, dtype=torch.long).reshape(1, 1)
-
     states = state.reshape(1, task.state_dim)
     actions = np.zeros((0, task.action_dim))
     rewards = np.zeros((0, 1))
@@ -396,26 +376,16 @@ def evaluate_episode_rtg(
 
         return action
 
-    def reform_window_len(data, window_len, padding_num=None):
-
-        window_data = data[-window_len:]
-        # window_data = torch.cat([torch.zeros((window_len - window_data.shape[0], window_data.shape[1]), device=window_data.device), window_data], dim=0).to(dtype=torch.float32)
-
-        # padding
-        if padding_num is not None:
-            window_data = padding_to_window(window_data, window_len, padding_num=padding_num)
-        return window_data
-
     for t in range(eval_steps):
         id = task.env.name + '-t=' + str(t) + '-eval'
-        print('t=%i $$$$$$$$$$$' % t)
+        if t % 10 == 0:
+            print('t=%i $$$$$$$$$$$' % t)
 
         # add padding
         #actions = torch.cat([actions, 0 * torch.ones((1, task.env.action_dim), device=device)], dim=0)
         actions = np.concatenate([actions, action_padding_num * np.ones((1, task.env.action_dim))], axis=0)
 
         # get recent window
-
         window_states = reform_window_len(states, task.cfg.window_len, padding_num=state_padding_num)
         window_actions = reform_window_len(actions, task.cfg.window_len, padding_num=action_padding_num)
         window_returns = reform_window_len(returns, task.cfg.window_len, padding_num=returns[0, 0])
@@ -423,99 +393,58 @@ def evaluate_episode_rtg(
         window_timesteps = reform_window_len(timesteps, task.cfg.window_len, padding_num=0)
         window_masks = reform_window_len(masks, task.cfg.window_len, padding_num=0).reshape(-1)
 
-        #print(window_states_rel.shape)
-        #print(window_actions_rel.shape)
-        #print(window_rtg_rel.shape)
-        #print(returns)
-        #print(window_returns)
-        #print(ep_return)
-
-
         window_states_rel, window_actions_rel, window_returns_rel = scale_vars(window_states, window_actions, window_returns)
-        #print(window_states, window_states_rel, state_mean)
-        #print(window_actions, window_actions_rel, action_mean)
-        #print(window_returns, window_returns_rel)
-        #print('&&&&')
 
-
-        if generate_action_once:
-            #print(window_masks)
-            #window_masks[-19:-1] = 1
-            #print(window_masks)
-            window_masks = np.ones((20))
+        if pred_is_cont:
             uniq_id, src, tgt, timesteps, mask = task.datasets['valid'].process_trajectory_from_vars(id, torch.tensor(window_states_rel), torch.tensor(window_actions_rel), torch.tensor(window_rewards), None, torch.tensor(window_returns_rel), torch.tensor(window_timesteps), torch.tensor(window_masks), inference=True)
             example = task.datasets['valid'].process_train_seq(uniq_id, src, tgt, timesteps, mask)
             sample = task.datasets['valid'].collater([example])
 
-            #print(sample['net_input']["sources"])
-            #print(sample['net_input']["source_lengths"])
-            #print(sample['net_input']["source_masks"])
-            #print(sample['net_input']["source_times"])
-            #print(sample['net_input']["prev_output_tokens"])
-            #print('&&&&')
-            #print(sample['net_input']["sources"].shape)
-            #print(sample['net_input']["source_masks"].shape)
-            #print(sample["target"])
-            #print(sample["target_length"])
-            #print(sample["target_mask"])
-
-
-            #action_pred_rel = get_result(task, generator, models, sample, tokenizer, get_first_tokens=task.action_dim)
-            #action_pred_rel = get_ref_result(task, models, sample, tokenizer, criterion, get_first_tokens=task.action_dim)
             net_output = models[0](**sample['net_input'])
-            #print('&&&&')
-            #print(net_output[0].shape)
-            #print(net_output[0])
             action_pred_rel = net_output[0][0][-1]
-            #print(action_pred_rel.shape)
-            #print(action_pred_rel)
-            #exit(5)
             action_pred_rel = action_pred_rel.detach().cpu().numpy()
         else:
-            action_pred_rel = []
-            for tai in range(task.action_dim):
-                print('^'*20)
-                print(tai)
-                if tai == 0:
-                    rsa = torch.cat([torch.tensor(window_returns_rel).reshape(-1, 1), torch.tensor(window_states_rel).reshape(-1, task.state_dim), torch.tensor(window_actions_rel).reshape(-1, task.action_dim)], dim=-1).reshape(-1)
-                    src = rsa[:-task.action_dim]
-                    tgt = torch.ones((0))
-                else:
-                    tgt = torch.cat([tgt, a_pred_rel.reshape(-1)], dim=0)
-
-                example = task.datasets['valid'].process_token_seq(id, src, tgt)
+            if generate_action_once:
+                uniq_id, src, tgt, timesteps, mask = task.datasets['valid'].process_trajectory_from_vars(id, torch.tensor(window_states_rel), torch.tensor(window_actions_rel), torch.tensor(window_rewards), None, torch.tensor(window_returns_rel), torch.tensor(window_timesteps), torch.tensor(window_masks), inference=True)
+                example = task.datasets['valid'].process_train_seq(uniq_id, src, tgt, timesteps, mask)
                 sample = task.datasets['valid'].collater([example])
+
                 #result = get_result(task, generator, models, sample, tokenizer)
                 result = get_ref_result(task, models, sample, tokenizer, criterion)
-                print(src)
-                print(tgt)
-                print(sample['net_input']['src_tokens'])
-                print(sample['net_input']['prev_output_tokens'])
-                print(sample['target'])
-                print(result)
-                a_pred_rel = result[-1]
-                action_pred_rel.append(a_pred_rel)
+                action_pred_rel = result.detach().cpu().numpy()
+            else:
+                action_pred_rel = []
+                for tai in range(task.action_dim):
+                    print('^'*20)
+                    print(tai)
+                    if tai == 0:
+                        rsa = torch.cat([torch.tensor(window_returns_rel).reshape(-1, 1), torch.tensor(window_states_rel).reshape(-1, task.state_dim), torch.tensor(window_actions_rel).reshape(-1, task.action_dim)], dim=-1).reshape(-1)
+                        src = rsa[:-task.action_dim]
+                        tgt = torch.ones((0))
+                    else:
+                        tgt = torch.cat([tgt, a_pred_rel.reshape(-1)], dim=0)
 
-            #action_pred_rel = torch.tensor(np.array(action_pred_rel))
-            action_pred_rel = np.array(action_pred_rel)
+                    example = task.datasets['valid'].process_token_seq(id, src, tgt)
+                    sample = task.datasets['valid'].collater([example])
+                    #result = get_result(task, generator, models, sample, tokenizer)
+                    result = get_ref_result(task, models, sample, tokenizer, criterion)
+                    print(src)
+                    print(tgt)
+                    print(sample['net_input']['src_tokens'])
+                    print(sample['net_input']['prev_output_tokens'])
+                    print(sample['target'])
+                    print(result)
+                    a_pred_rel = result[-1]
+                    action_pred_rel.append(a_pred_rel)
 
-        #print(action_pred_rel)
-        #exit(5)
+                action_pred_rel = np.array(action_pred_rel)
+
         action_pred = rescale_vars(action_pred_rel)
-        #actions[-1] = action_pred
-        #action = action_pred.detach().cpu().numpy()
-
         action = action_pred
         actions[-1] = action
 
         state, reward, done, _ = task.env.step(action)
         target_return = (target_return - reward) / gamma
-
-        #cur_state = torch.from_numpy(state).to(device=device).reshape(1, task.state_dim)
-        #states = torch.cat([states, cur_state], dim=0)
-        #rewards = torch.cat([rewards, torch.tensor(reward).reshape(1, 1)], dim=0)
-        #returns = torch.cat([returns, torch.tensor(target_return).reshape(1, 1)], dim=0)
-        #timesteps = torch.cat([timesteps, torch.ones((1, 1), device=device, dtype=torch.long) * (t + 1)], dim=0)
 
         states = np.concatenate([states, state.reshape((-1, task.state_dim))])
         rewards = np.concatenate([rewards, np.array(rewards).reshape((-1, 1))])
@@ -533,7 +462,13 @@ def evaluate_episode_rtg(
     return episode_return, episode_length
 
 
+def reform_window_len(data, window_len, padding_num=None):
+    window_data = data[-window_len:]
 
+    # padding
+    if padding_num is not None:
+        window_data = padding_to_window(window_data, window_len, padding_num=padding_num)
+    return window_data
 
 def padding_to_window(win_data, win_len, padding_num=None, batch_mode=False):
 
@@ -551,7 +486,6 @@ def padding_to_window(win_data, win_len, padding_num=None, batch_mode=False):
         dummy_array = np.ones((win_len - tlen, dim))
         cat_dim = 0
 
-    #win_data = torch.cat([padding_num * torch.tensor(dummy_array), win_data], dim=cat_dim)
     win_data = np.concatenate([padding_num * dummy_array, win_data],  axis=cat_dim)
     return win_data
 

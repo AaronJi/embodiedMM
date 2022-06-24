@@ -439,6 +439,7 @@ class TransformerDecoderLayer(nn.Module):
             attn_mask=self_attn_mask,
             attn_bias=self_attn_bias
         )
+
         if self.self_attn_ln is not None:
             x = self.self_attn_ln(x)
         x = self.dropout_module(x)
