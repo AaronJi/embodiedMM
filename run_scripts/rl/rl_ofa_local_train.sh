@@ -10,9 +10,10 @@ bpe_dir=../../utils/BPE
 user_dir=../../ofa_module
 
 env=hopper
-dataset=medium-replay   #medium-replay  # expert # medium
+dataset=expert   #medium-replay  # expert # medium
+dataset_valid=medium
 data_dir=../../dataset/gym_data
-data=${data_dir}/${env}-${dataset}-v2.tsv,${data_dir}/${env}-${dataset}-v2.tsv
+data=${data_dir}/${env}-${dataset}-v2.tsv,${data_dir}/${env}-${dataset_valid}-v2.tsv
 restore_file=./checkpoints/ofa_base.pt
 selected_cols=0,1,2,3,4,5,6,7
 # save_dir=/data/output1/ofa_workspace/checkpoints/train_for_${task}_hopper_w_pretrain
@@ -37,6 +38,7 @@ num_bins=1000
 patch_image_size=384
 sample_patch_num=196
 max_image_size=512
+drop_worst_after=5000
 
 log_dir=./logs
 save_dir=./checkpoints
@@ -93,7 +95,7 @@ python ../../train.py \
   --ddp-backend=no_c10d \
   --use-bmuf \
   --fp16-scale-window=128 \
-  --num-workers=0 > ${log_file} 2>&1
+  --num-workers=0 #> ${log_file} 2>&1
 
 # --restore-file=${restore_file} \
 # --freeze-encoder-embedding \

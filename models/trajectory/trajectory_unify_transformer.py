@@ -884,7 +884,6 @@ class TrajTransformerEncoder(FairseqEncoder):
             if return_all_hiddens:
                 assert encoder_states is not None
                 encoder_states.append(x)
-
         if self.layer_norm is not None:
             x = self.layer_norm(x)  # shape = [src_tokens_len + window_len, bsz, emb_dim]
 
@@ -1456,7 +1455,8 @@ class TrajTransformerDecoder(FairseqIncrementalDecoder):
             self_attn_bias = self_attn_bias.reshape(-1, *self_attn_bias.size()[-2:])  # shape = [bsz*num_attention_heads, window_len, window_len]
             if incremental_state is not None:
                 self_attn_bias = self_attn_bias[:, -1:, :]
-
+            #print('^^^&&******start')
+            #print('idx = %i' % idx)
             x, layer_attn, _ = layer(
                 x,
                 enc,
@@ -1469,6 +1469,7 @@ class TrajTransformerDecoder(FairseqIncrementalDecoder):
                 self_attn_bias=self_attn_bias,
                 cross_attn_bias=cross_abs_pos_bias
             )
+            #print('^^^&&******end')
             inner_states.append(x)
             if layer_attn is not None and idx == alignment_layer:
                 attn = layer_attn.float().to(x)

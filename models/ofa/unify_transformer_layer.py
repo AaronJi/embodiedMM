@@ -121,6 +121,7 @@ class TransformerEncoderLayer(nn.Module):
         )
 
     def build_self_attention(self, embed_dim, args):
+        #from .unify_multihead_attention_de import MultiheadAttention  # TODO
         return MultiheadAttention(
             embed_dim,
             args.encoder_attention_heads,
@@ -224,6 +225,7 @@ class TransformerEncoderLayer(nn.Module):
         x = self.residual_connection(x, residual)
         if not self.normalize_before:
             x = self.final_layer_norm(x)
+
         return x
 
 
@@ -327,6 +329,7 @@ class TransformerDecoderLayer(nn.Module):
     def build_self_attention(
         self, embed_dim, args, add_bias_kv=False, add_zero_attn=False
     ):
+        from .unify_multihead_attention_de import MultiheadAttention  # TODO
         return MultiheadAttention(
             embed_dim,
             args.decoder_attention_heads,

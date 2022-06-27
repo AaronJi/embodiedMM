@@ -17,6 +17,7 @@ from fairseq.utils import reset_logging
 from omegaconf import DictConfig
 
 from utils import checkpoint_utils
+from utils.rl.rl_utils import reform_window_len
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -112,7 +113,7 @@ def main(cfg: DictConfig, **kwargs):
     generator = task.build_generator(models, cfg.generation)
     tokenizer = Tokenizer()
 
-    num_eval_episodes = 30
+    num_eval_episodes = 3
     outputs_list = []
 
     env_targets = [3000]
@@ -352,7 +353,7 @@ def evaluate_episode_rtg(
     rewards = np.zeros((0, 1))
     returns = target_return * np.ones((1, 1))
     timesteps = np.zeros((1, 1))
-    masks = np.ones((1, 1))
+    masks = np.zeros((1, 1))
 
     ep_return = target_return
     episode_return, episode_length = 0, 0
@@ -388,10 +389,10 @@ def evaluate_episode_rtg(
         # get recent window
         window_states = reform_window_len(states, task.cfg.window_len, padding_num=state_padding_num)
         window_actions = reform_window_len(actions, task.cfg.window_len, padding_num=action_padding_num)
-        window_returns = reform_window_len(returns, task.cfg.window_len, padding_num=returns[0, 0])
+        window_returns = reform_window_len(returns, task.cfg.window_len, padding_num=0)  # returns[0, 0]
         window_rewards = reform_window_len(rewards, task.cfg.window_len, padding_num=0)
         window_timesteps = reform_window_len(timesteps, task.cfg.window_len, padding_num=0)
-        window_masks = reform_window_len(masks, task.cfg.window_len, padding_num=0).reshape(-1)
+        window_masks = reform_window_len(masks, task.cfg.window_len, padding_num=1).reshape(-1)
 
         window_states_rel, window_actions_rel, window_returns_rel = scale_vars(window_states, window_actions, window_returns)
 
@@ -399,6 +400,9 @@ def evaluate_episode_rtg(
             uniq_id, src, tgt, timesteps, mask = task.datasets['valid'].process_trajectory_from_vars(id, torch.tensor(window_states_rel), torch.tensor(window_actions_rel), torch.tensor(window_rewards), None, torch.tensor(window_returns_rel), torch.tensor(window_timesteps), torch.tensor(window_masks), inference=True)
             example = task.datasets['valid'].process_train_seq(uniq_id, src, tgt, timesteps, mask)
             sample = task.datasets['valid'].collater([example])
+
+            #from data.rl_data.gym_dataset import print_batch
+            #print_batch(sample)
 
             net_output = models[0](**sample['net_input'])
             action_pred_rel = net_output[0][0][-1]
@@ -440,6 +444,7 @@ def evaluate_episode_rtg(
                 action_pred_rel = np.array(action_pred_rel)
 
         action_pred = rescale_vars(action_pred_rel)
+        #print(action_pred_rel, action_pred)
         action = action_pred
         actions[-1] = action
 
@@ -450,7 +455,7 @@ def evaluate_episode_rtg(
         rewards = np.concatenate([rewards, np.array(rewards).reshape((-1, 1))])
         returns = np.concatenate([returns, np.array(target_return).reshape((-1, 1))])
         timesteps = np.concatenate([timesteps, (t + 1)*np.ones((1, 1))])
-        masks = np.concatenate([masks, np.ones((1, 1))])
+        masks = np.concatenate([masks, np.zeros((1, 1))])
 
         episode_return += reward
         episode_length += 1
@@ -461,33 +466,6 @@ def evaluate_episode_rtg(
 
     return episode_return, episode_length
 
-
-def reform_window_len(data, window_len, padding_num=None):
-    window_data = data[-window_len:]
-
-    # padding
-    if padding_num is not None:
-        window_data = padding_to_window(window_data, window_len, padding_num=padding_num)
-    return window_data
-
-def padding_to_window(win_data, win_len, padding_num=None, batch_mode=False):
-
-    if padding_num is None:
-        padding_num = 0
-
-    if batch_mode:
-        tlen = win_data.shape[1]
-        dim = win_data.shape[2]
-        dummy_array = np.ones((1, win_len - tlen, dim))
-        cat_dim = 1
-    else:
-        tlen = win_data.shape[0]
-        dim = win_data.shape[1]
-        dummy_array = np.ones((win_len - tlen, dim))
-        cat_dim = 0
-
-    win_data = np.concatenate([padding_num * dummy_array, win_data],  axis=cat_dim)
-    return win_data
 
 def cli_main():
     parser = options.get_generation_parser()

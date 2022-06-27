@@ -10,14 +10,14 @@ user_dir=../../ofa_module
 bpe_dir=../../utils/BPE
 
 env=hopper
-dataset=medium-replay   #medium-replay  # expert # medium
+dataset=expert   #medium-replay  # expert # medium
 data_dir=../../dataset/gym_data
 data=${data_dir}/${env}-${dataset}-v2.tsv
 
 save_dir=./checkpoints
 max_epoch=1
 warmup_ratio=0.01
-
+drop_worst_after=5000
 path=../../run_scripts/rl/checkpoints/checkpoint_last.pt
 path=${save_dir}/${env}"_"${dataset}"_"${max_epoch}"_"${warmup_ratio}"_"${drop_worst_after}/checkpoint_last.pt
 

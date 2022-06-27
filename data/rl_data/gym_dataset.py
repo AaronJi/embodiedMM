@@ -46,6 +46,33 @@ def get_whole_word_mask(bpe, dictionary):
     return None
 
 
+def print_sample(sample):
+    print('id: ', sample['id'])
+    print('source: ', sample['source'])
+    print('source_mask: ', sample['source_mask'])
+    print('prev_output_tokens: ', sample['prev_output_tokens'])
+    print('target: ', sample['target'])
+    print('target_mask: ', sample['target_mask'])
+    print('source_time: ', sample['source_time'].reshape(-1))
+    return
+
+
+def print_batch(samples):
+    print('id: ', samples['id'])
+    print('nsentences: ', samples['nsentences'])
+    print('ntokens: ', samples['ntokens'])
+    print('src_tokens: ', samples['net_input']['src_tokens'])
+    print('src_lengths: ', samples['net_input']['src_lengths'])
+    print('sources: ', samples['net_input']['sources'])
+    print('source_lengths: ', samples['net_input']['source_lengths'])
+    print('source_masks: ', samples['net_input']['source_masks'])
+    print('source_times: ', samples['net_input']['source_times'])
+    print('prev_output_tokens: ', samples['net_input']['prev_output_tokens'])
+    print('target: ', samples['target'])
+    print('target_mask: ', samples['target_mask'])
+    print('target_length: ', samples['target_length'].reshape(-1))
+    return
+
 def collate(samples, pad_idx, eos_idx):
     if len(samples) == 0:
         return {}
@@ -162,7 +189,11 @@ class GymDataset(OFADataset):
         keep_ratio=0.0,
         mask_length="span-poisson",
         poisson_lambda=3.0,
-        replace_length=1
+        replace_length=1,
+        state_dim=11,
+        action_dim=3,
+        state_padding_num=0.0,
+        action_padding_num=0.0
     ):
         super().__init__(split, dataset, bpe, src_dict, tgt_dict)
         self.max_src_length = max_src_length
@@ -185,6 +216,10 @@ class GymDataset(OFADataset):
             raise ValueError(f"invalid arg: mask-length={self.mask_length}")
         if self.mask_length == "subword" and self.replace_length not in [0, 1]:
             raise ValueError(f"if using subwords, use replace-length=1 or 0")
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.state_padding_num = state_padding_num
+        self.action_padding_num = action_padding_num
 
         '''
         self.mask_idx = src_dict.index("<mask>")
@@ -252,15 +287,7 @@ class GymDataset(OFADataset):
         
         '''
 
-
         #self.device = 'cpu'
-        self.state_dim = 11
-        self.action_dim = 3
-        #self.state_padding_num = 0.5
-        #self.action_padding_num = 0.5
-        self.state_padding_num = 0.0
-        self.action_padding_num = 0.0
-
         return
 
     def __len__(self):
@@ -317,7 +344,8 @@ class GymDataset(OFADataset):
         s = torch.tensor(s, dtype=torch.float32)
         a = torch.tensor(a, dtype=torch.float32)
         if not inference:
-            rtg = torch.tensor(rtg[:-1], dtype=torch.float32)
+            #rtg = torch.tensor(rtg[:-1], dtype=torch.float32)
+            rtg = torch.tensor(rtg, dtype=torch.float32)
         else:
             rtg = torch.tensor(rtg, dtype=torch.float32)
         timesteps = torch.tensor(timesteps).reshape((-1, 1))
@@ -326,10 +354,12 @@ class GymDataset(OFADataset):
         #src = rsa[:-self.action_dim]
         #tgt = rsa[-self.action_dim:]
 
-        tgt = a.reshape((-1, self.action_dim))  # shape = [T, dim_a]
-        mask = 1 - torch.tensor(mask)  # TODO
+
+        mask = torch.tensor(mask)
+        #mask = 1 - mask  # TODO
         #tgt_mask = mask*torch.ones((1, self.action_dim))
 
+        tgt = a.reshape((-1, self.action_dim))  # shape = [T, dim_a]
         train_a = tgt.clone()
         train_a[-1] = self.action_padding_num*torch.ones(self.action_dim)
 
@@ -350,7 +380,8 @@ class GymDataset(OFADataset):
         timesteps = get_nparray_from_str(timesteps)
         mask = get_nparray_from_str(mask)
 
-        return self.process_trajectory_from_vars(uniq_id, s, a, r, d, rtg, timesteps, mask)
+        uniq_id, src, tgt, timesteps, mask = self.process_trajectory_from_vars(uniq_id, s, a, r, d, rtg, timesteps, mask)
+        return uniq_id, src, tgt, timesteps, mask
 
 if __name__ == '__main__':
     from data.file_dataset import FileDataset

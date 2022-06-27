@@ -1,5 +1,0 @@
-RNG_SEED: 1409
-ENV:
-  MODULES: ["Agent", "Floor"]
-TERRAIN:
-  SIZE: [100, 100, 1]

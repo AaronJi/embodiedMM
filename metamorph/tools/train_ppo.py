@@ -4,12 +4,12 @@ import sys
 
 import torch
 
-from metamorph.algos.ppo.ppo import PPO
-from metamorph.config import cfg
-from metamorph.config import dump_cfg
-from metamorph.utils import file as fu
-from metamorph.utils import sample as su
-from metamorph.utils import sweep as swu
+#from metamorph.algos.ppo.ppo import PPO
+#from metamorph.config import cfg
+#from metamorph.config import dump_cfg
+#from metamorph.utils import file as fu
+#from metamorph.utils import sample as su
+#from metamorph.utils import sweep as swu
 
 
 def set_cfg_options():
@@ -49,10 +49,7 @@ def calculate_max_iters():
         int(cfg.PPO.EARLY_EXIT_STATE_ACTION_PAIRS) // cfg.PPO.TIMESTEPS // cfg.PPO.NUM_ENVS
     )
 
-    print('MAX_ITERS: %i' % cfg.PPO.MAX_ITERS)
-    print('EARLY_EXIT_MAX_ITERS: %i' % cfg.PPO.EARLY_EXIT_MAX_ITERS)
 
-    return
 def maybe_infer_walkers():
     if cfg.ENV_NAME != "Unimal-v0":
         return

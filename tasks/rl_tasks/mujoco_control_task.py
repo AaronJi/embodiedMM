@@ -6,6 +6,7 @@
 from dataclasses import dataclass, field
 import logging
 import os
+import random
 import numpy as np
 from typing import Optional
 from omegaconf import DictConfig
@@ -16,7 +17,7 @@ from tasks.ofa_task import OFATask, OFAConfig
 from data.rl_data.gym_dataset import GymDataset
 from data.file_dataset import FileDataset
 from utils.statistic_utils import cal_stat, if_array_in_bounds
-from utils.rl.rl_utils import discount_cumsum, get_str_from_1darray
+from utils.rl.rl_utils import discount_cumsum, get_str_from_1darray, reform_window_len, padding_to_window
 
 logger = logging.getLogger(__name__)
 on_local = True  # if is on the local mode or cloud-computing, i.e. pai & odps
@@ -102,7 +103,7 @@ class MujocoControlConfig(OFAConfig):
         metadata={"help": "gamma to calculate rtg from reward"},
     )
     window_len: int = field(
-        default=20,
+        default=5,
         metadata={"help": "window length of sampled trajectory data"},
     )
     moving_window_step: int = field(
@@ -114,7 +115,11 @@ class MujocoControlConfig(OFAConfig):
         metadata={"help": "state padding number"},
     )
     action_padding_num: float = field(
-        default=0.0,  # 0.5
+        default=-10,  # 0.5
+        metadata={"help": "action padding number"},
+    )
+    done_padding_num: float = field(
+        default=2,
         metadata={"help": "action padding number"},
     )
     extract_way: str = field(
@@ -124,6 +129,10 @@ class MujocoControlConfig(OFAConfig):
     scale_way: str = field(
         default='normalize',  # 'minmax'
         metadata={"help": "scale method of state and action: minmax or normalize"},
+    )
+    rtg_scale_num: float = field(
+        default=1000.0,
+        metadata={"help": "scale of return to go"},
     )
     get_stat_from_data: bool = field(
         default=True,
@@ -213,12 +222,14 @@ class MujocoControlTask(OFATask):
             else:
                 file_path = self.cfg.data
 
-            #gym_file_path = '.'.join(file_path.split('.')[:-1] + ['pkl'])
-            gym_file_path = '../../dataset/gym_data/hopper-medium-replay-v2.pkl'
+            gym_file_path = '.'.join(file_path.split('.')[:-1] + ['pkl'])
+            #gym_file_path = '../../dataset/gym_data/hopper-medium-replay-v2.pkl'
 
             import pickle
             with open(gym_file_path, 'rb') as f:
                 self.trajectories = pickle.load(f)
+
+            random.shuffle(self.trajectories)
 
             states, actions, rewards, returns, traj_lens = [], [], [], [], []
             for path in self.trajectories:
@@ -281,7 +292,6 @@ class MujocoControlTask(OFATask):
         return
 
     def split_trajectories(self):
-        import random
         #sample_inds = self.sorted_inds
         sample_inds = list(range(len(self.trajectories)))
         random.shuffle(sample_inds)
@@ -351,6 +361,63 @@ class MujocoControlTask(OFATask):
         gym_data = []
         for i_traj, traj in enumerate(trajectories):
             len_traj = len(traj['rewards'])
+            print('traj=%i, len=%i' % (i_traj, len_traj))
+            for t_end_window in range(len_traj):
+                s, a, r, d, rtg, timesteps, mask = self.extact_traj_window(traj, t_end_window, self.cfg.window_len)
+
+                if self.cfg.scale_way == 'normalize':
+                    s = (s - self.state_mean) / self.state_std
+                    a = (a - self.action_mean) / self.action_std
+                else:
+                    s = (s - self.state_bounds[0]) / (self.state_bounds[1] - self.state_bounds[0])
+                    a = (a - self.action_bounds[0]) / (self.action_bounds[1] - self.action_bounds[0])
+                rtg = rtg/self.cfg.rtg_scale_num
+
+                uniq_id = '%s-traj%i-endtime%i' % (file_path.split('.')[-2], i_traj, t_end_window)
+                #print(uniq_id, s, a, r, d, rtg, timesteps, mask)
+                #exit(5)
+                gym_data.append((uniq_id, s, a, r, d, rtg, timesteps, mask))
+
+                if i_traj > 100:
+                    break
+        return gym_data
+
+    def extact_traj_window(self, traj, t_end_window, window_len):
+        # get sequences from dataset
+        s = reform_window_len(traj['observations'], window_len, index_end=t_end_window, padding_num=self.cfg.state_padding_num)
+        a = reform_window_len(traj['actions'], window_len, index_end=t_end_window, padding_num=self.cfg.action_padding_num)
+        r = reform_window_len(traj['rewards'], window_len, index_end=t_end_window, padding_num=0.0, batch_dim=0)
+        d = reform_window_len(traj['terminals' if 'terminals' in traj else 'dones'], window_len, index_end=t_end_window, padding_num=self.cfg.done_padding_num, batch_dim=0)
+        assert len(s) > 0 and len(a) > 0 and len(r) > 0 and len(d) > 0
+
+        t_start_window = max(t_end_window - window_len + 1, 0)
+        t_len = t_end_window - t_start_window + 1
+
+        timesteps = np.arange(t_start_window, t_end_window + 1)  # [[si, si+1, ..., si+K-1]]
+        timesteps = padding_to_window(timesteps, window_len, padding_num=0, batch_dim=0)
+        timesteps[timesteps >= self.max_ep_len] = self.max_ep_len - 1  # padding cutoff
+
+        # padding and state + reward normalization
+        #rtg_padding_num = float(rtg[:, 0, 0])
+        rtg_padding_num = 0
+
+        returns = discount_cumsum(traj['rewards'][t_start_window:], gamma=self.cfg.gamma)
+        #rtg = returns[:t_len + 1]
+        #if rtg.shape[0] <= t_len:
+        #    rtg = np.concatenate([rtg, np.zeros(1)], axis=0)  # TODO why?
+        rtg = returns[:t_len]
+
+        rtg = padding_to_window(rtg, window_len, padding_num=rtg_padding_num, batch_dim=0)
+
+        mask = np.concatenate([np.ones(self.cfg.window_len - t_len), np.zeros(t_len)], axis=0)  # TODO different definition with DT paper!
+
+        return s, a, r, d, rtg, timesteps, mask
+
+
+    def extract_trajectories0(self, trajectories, file_path):
+        gym_data = []
+        for i_traj, traj in enumerate(trajectories):
+            len_traj = len(traj['rewards'])
             if self.cfg.extract_way == 'full':
                 t0_start = min(len_traj - self.cfg.window_len, 0)
             elif self.cfg.extract_way == 'rand':
@@ -362,38 +429,31 @@ class MujocoControlTask(OFATask):
             if t0_start < 1 - self.cfg.window_len:
                 continue
 
-
             t0_end = max(len_traj - self.cfg.window_len+1, t0_start)
-
             print('traj=%i, len=%i, t0_start=%i, t0_end=%i' % (i_traj, len_traj, t0_start, t0_end))
             moving_window_step = 1
             #moving_window_step = self.cfg.window_len
             for t0 in range(t0_start, t0_end, moving_window_step):
                 #print('i_traj=%i, ti=%i' % (i_traj, ti))
-                s, a, r, d, rtg, timesteps, mask = self.extact_traj_window(traj, t0)
+                s, a, r, d, rtg, timesteps, mask = self.extact_traj_window0(traj, t0)
                 if self.cfg.scale_way == 'minmax':
                     if not if_array_in_bounds(s, [0.0, 1.0]):
                         print('state out of bound, skip')
                         continue
-
                     if not if_array_in_bounds(a, [0.0, 1.0]):
                         print('action out of bound, skip')
                         continue
-
                     if not if_array_in_bounds(rtg, [0.0, 1.0]):
                         print('rtg out of bound, skip')
                         print(rtg)
                         continue
 
                 uniq_id = '%s-traj%i-time%i' % (file_path.split('.')[-2], i_traj, t0)
-                #example = self.process_pure_trajectory(torch.tensor(s), torch.tensor(a), torch.tensor(rtg[:,:-1,:]), uniq_id)
                 gym_data.append((uniq_id, s, a, r, d, rtg, timesteps, mask))
-            #if i_traj > 500:
-            #    break
 
         return gym_data
 
-    def extact_traj_window(self, traj, si):
+    def extact_traj_window0(self, traj, si):
         # get sequences from dataset
         s = traj['observations'][si:si + self.cfg.window_len].reshape(1, -1, self.state_dim)  # shape = [1, K, s_dim]
         a = traj['actions'][si:si + self.cfg.window_len].reshape(1, -1, self.action_dim)
@@ -432,8 +492,8 @@ class MujocoControlTask(OFATask):
             rtg = (rtg - rtg_min) / (rtg_max - rtg_min)
 
         # padding and state + reward normalization
-        rtg_padding_num = float(rtg[:, 0, 0])
-
+        #rtg_padding_num = float(rtg[:, 0, 0])
+        rtg_padding_num = 0
         tlen = s.shape[1]
         s = np.concatenate([self.cfg.state_padding_num*np.ones((1, self.cfg.window_len - tlen, self.state_dim)), s], axis=1)
         if self.cfg.scale_way == 'normalize':
@@ -445,7 +505,7 @@ class MujocoControlTask(OFATask):
         d = np.concatenate([np.ones((1, self.cfg.window_len - tlen)) * 2, d], axis=1)
         rtg = np.concatenate([rtg_padding_num*np.ones((1, self.cfg.window_len - tlen, 1)), rtg], axis=1) # / self.scale
         timesteps = np.concatenate([np.zeros((1, self.cfg.window_len - tlen)), timesteps], axis=1)
-        mask = np.concatenate([np.zeros((1, self.cfg.window_len - tlen)), np.ones((1, tlen))], axis=1)
+        mask = np.concatenate([np.ones((1, self.cfg.window_len - tlen)), np.zeros((1, tlen))], axis=1)  # TODO different definition with DT paper!
 
         return s, a, r, d, rtg, timesteps, mask
 
@@ -473,7 +533,11 @@ class MujocoControlTask(OFATask):
             keep_ratio=self.cfg.keep_ratio,
             mask_length=self.cfg.mask_length,
             poisson_lambda=self.cfg.poisson_lambda,
-            replace_length=self.cfg.replace_length
+            replace_length=self.cfg.replace_length,
+            state_dim=self.state_dim,
+            action_dim=self.action_dim,
+            state_padding_num=self.cfg.state_padding_num,
+            action_padding_num=self.cfg.action_padding_num
         )
         return
 
@@ -514,10 +578,14 @@ class MujocoControlTask(OFATask):
             keep_ratio=self.cfg.keep_ratio,
             mask_length=self.cfg.mask_length,
             poisson_lambda=self.cfg.poisson_lambda,
-            replace_length=self.cfg.replace_length
+            replace_length=self.cfg.replace_length,
+            state_dim=self.state_dim,
+            action_dim=self.action_dim,
+            state_padding_num=self.cfg.state_padding_num,
+            action_padding_num=self.cfg.action_padding_num
         )
-        #self.check_data()
-        #self.check_data_shape()
+        #self.check_data(self.datasets[split])
+        #self.check_data_shape(self.datasets[split])
         return
 
     def print_model_params(self, model):
@@ -529,39 +597,36 @@ class MujocoControlTask(OFATask):
         print('&' * 50)
         return
 
-    def check_data(self):
-        split = 'valid'
-        check_dataset = self.datasets[split]
+    def check_data(self, check_dataset):
         for index in range(len(check_dataset)):
             sample = check_dataset[index]
             #print(index, sample['id'])
             index_base = 3
-            traj_num = int(sample['id'].split('-')[index_base][4:])
-            time_num = int(sample['id'].split('-')[index_base+1][4:])
-            #print(traj_num, time_num)
+
+            from data.rl_data.gym_dataset import print_sample
+            print_sample(sample)
+
+            print(sample['id'].split('-'))
+
+            traj_num = int(sample['id'].split('-')[index_base][len('traj'):])
+            time_num = int(sample['id'].split('-')[index_base+1][len('endtime'):])
+            print(traj_num, time_num)
+
+            exit(4)
 
             #if (traj_num == 453 and time_num > 140) or traj_num >= 454:
             check_traj = 453
             check_traj = 134
             #if traj_num >= 453:
-            if traj_num == check_traj:
-                print(sample['id'])
-                print(sample['source'])
-                print(sample['source_mask'])
-                print(sample['prev_output_tokens'])
-                print(sample['target'])
-                print(sample['target_mask'])
-                print(sample['source_time'].reshape(-1))
-
-            if traj_num > check_traj:
-                exit(5)
+            #if traj_num == check_traj:
+            #    print_sample(sample)
+            #if traj_num > check_traj:
+            #    exit(5)
         exit(4)
         # '/dataset/gym_data/hopper-medium-replay-v2-traj453-time140']
 
         return
-    def check_data_shape(self):
-        split = 'valid'
-        check_dataset = self.datasets[split]
+    def check_data_shape(self, check_dataset):
         print(len(check_dataset))
         #print(check_dataset['0'])
 
@@ -613,6 +678,7 @@ class MujocoControlTask(OFATask):
         exit(2)
         return
 
+    '''
     def train_step(
         self, sample, model, criterion, optimizer, update_num, ignore_grad=False, **extra_kwargs
     ):
@@ -654,4 +720,6 @@ class MujocoControlTask(OFATask):
             loss *= 0
         with torch.autograd.profiler.record_function("backward"):
             optimizer.backward(loss)
-        return loss, sample_size, logging_output
+        return loss, sample_size, logging_output    
+    '''
+

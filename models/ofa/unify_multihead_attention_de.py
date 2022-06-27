@@ -344,31 +344,72 @@ class MultiheadAttention(nn.Module):
         if attn_bias is not None:
             attn_weights += attn_bias
 
+        #print('*'*20)
+        #print(query.shape)  # decode: [len, bsz, emb_dim]
+        #print(key.shape)  # decode: [len, bsz, emb_dim]
+        #print(value.shape)  # decode: [len, bsz, emb_dim]
+        #print(query)
+        #print(key)
+        #print(value)
+
+        #print(key_padding_mask)
+        #print(key_padding_mask.shape)  # encode: [bsz, len]
+
+        #print('attn_mask: ', attn_mask)   # encode: None; decode: [len, len]
+        #print(attn_mask.shape)
+        #print(attn_bias)   # decode: [bsz*num_heads, len, len]
+        #print(attn_bias.shape)
+        #print('self_attn_mask: ', self_attn_mask)  # encode: None; decode: None
+        #print(self_attn_mask.shape)
+
         if attn_mask is not None:
             attn_mask = attn_mask.unsqueeze(0)
+
             if self.onnx_trace:
                 attn_mask = attn_mask.repeat(attn_weights.size(0), 1, 1)
+
             attn_weights += attn_mask
 
         if self_attn_mask is not None:
             self_attn_mask = self_attn_mask.unsqueeze(1).expand(bsz, self.num_heads, tgt_len, src_len)
             attn_weights += self_attn_mask.contiguous().view(bsz * self.num_heads, tgt_len, src_len)
 
+        #print('&' * 20)
+        #print(is_tpu)  # encode: False; decode: False
+        #print(attn_weights.shape)  # encode: [bsz*num_heads, len, len];  decode: [bsz*num_heads, len, len]
+        #print(attn_weights)
+        #exit(5)
         if key_padding_mask is not None:
-
-            attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
-            #is_tpu = True  # TODO non-tpu mode current has error when mask exists!
+            # don't attend to padding symbols
+            attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)  # [bsz, num_heads, len, len]
+            is_tpu = True
             if not is_tpu:
+                #print('@' * 20)
+                kpm = key_padding_mask.unsqueeze(1).unsqueeze(2)
+                #print(kpm.shape)
+                #print(kpm)
+                # key_padding_mask: encode: [bsz, len] = > [bsz, 1, 1, len]; decode: [bsz, len] = > [bsz, 1, 1, len]
                 attn_weights = attn_weights.masked_fill(
-                    key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool),
+                    key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool),  # [bsz, 1, 1, len]  # TODO this operation has problem when decoding!
                     float("-inf"),
                 )
+                #print(attn_weights.shape)  # decode: [bsz, num_heads, len, len]
+                #print(attn_weights)
             else:
-                attn_weights = attn_weights.transpose(0, 2)
+                #print('@#' * 20)
+                attn_weights = attn_weights.transpose(0, 2)   # encode: [len, num_heads, bsz, len];  # decode: [len, num_heads, bsz, len]
+                #print(attn_weights.shape)
+                #print(attn_weights)
                 attn_weights = attn_weights.masked_fill(key_padding_mask, float("-inf"))
                 attn_weights = attn_weights.transpose(0, 2)
-            attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
-
+                #print(attn_weights.shape)   # encode: [bsz, num_heads, len, len]; decode: [bsz, num_heads, len, len]
+                #print(attn_weights)
+            #attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)  # encode: [bsz*num_heads, len, len]
+            attn_weights = attn_weights.reshape(bsz * self.num_heads, tgt_len, src_len)  # decode: [bsz*num_heads, len, len]
+        #print('#' * 20)
+        #print(attn_weights.shape)
+        #print(attn_weights)
+        #exit(5)
         if before_softmax:
             return attn_weights, v
 
@@ -400,7 +441,12 @@ class MultiheadAttention(nn.Module):
             if not need_head_weights:
                 # average attention weights over heads
                 attn_weights = attn_weights.mean(dim=0)
-
+        #print('%' * 20)
+        #print(attn.shape)
+        #print(attn)
+        #print(attn_weights.shape)
+        #print(attn_weights)
+        #exit(5)
         return attn, attn_weights
 
     @staticmethod
