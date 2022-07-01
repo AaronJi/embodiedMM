@@ -113,7 +113,7 @@ def main(cfg: DictConfig, **kwargs):
     generator = task.build_generator(models, cfg.generation)
     tokenizer = Tokenizer()
 
-    num_eval_episodes = 3
+    num_eval_episodes = 30
     outputs_list = []
 
     env_targets = [3000]
@@ -317,7 +317,7 @@ def evaluate_episode_rtg(
     #gamma = task.cfg.gamma
 
     #eval_steps = task.max_ep_len
-    eval_steps = 1000
+    eval_steps = 5000
 
     # statistics
     state_mean = task.state_mean
@@ -397,15 +397,16 @@ def evaluate_episode_rtg(
         window_states_rel, window_actions_rel, window_returns_rel = scale_vars(window_states, window_actions, window_returns)
 
         if pred_is_cont:
-            uniq_id, src, tgt, timesteps, mask = task.datasets['valid'].process_trajectory_from_vars(id, torch.tensor(window_states_rel), torch.tensor(window_actions_rel), torch.tensor(window_rewards), None, torch.tensor(window_returns_rel), torch.tensor(window_timesteps), torch.tensor(window_masks), inference=True)
-            example = task.datasets['valid'].process_train_seq(uniq_id, src, tgt, timesteps, mask)
+            uniq_id, src, tgt, timesteps, mask, prev_tgt = task.datasets['valid'].process_trajectory_from_vars(id, torch.tensor(window_states_rel), torch.tensor(window_actions_rel), torch.tensor(window_rewards), None, torch.tensor(window_returns_rel), torch.tensor(window_timesteps), torch.tensor(window_masks), inference=True)
+            example = task.datasets['valid'].process_train_seq(uniq_id, src, tgt, timesteps, mask, prev_tgt)
             sample = task.datasets['valid'].collater([example])
 
             #from data.rl_data.gym_dataset import print_batch
             #print_batch(sample)
 
             net_output = models[0](**sample['net_input'])
-            action_pred_rel = net_output[0][0][-1]
+
+            action_pred_rel = net_output[0][0][-1][-task.env.action_dim:]
             action_pred_rel = action_pred_rel.detach().cpu().numpy()
         else:
             if generate_action_once:

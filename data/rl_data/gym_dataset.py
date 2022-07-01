@@ -295,8 +295,8 @@ class GymDataset(OFADataset):
 
     def __getitem__(self, index):
         #with data_utils.numpy_seed(self.seed, self.epoch):
-        uniq_id, src, tgt, timestep, mask = self.process_trajectory(index)
-        example = self.process_train_seq(uniq_id, src, tgt, timestep, mask)
+        uniq_id, src, tgt, timestep, mask, prev_tgt = self.process_trajectory(index)
+        example = self.process_train_seq(uniq_id, src, tgt, timestep, mask, prev_tgt)
         return example
 
 
@@ -318,8 +318,8 @@ class GymDataset(OFADataset):
 
         return
 
-    def process_train_seq(self, uniq_id, src, tgt, timestep, mask):
-        prev_tgt = torch.cat([self.action_padding_num*torch.ones(1, self.action_dim), tgt[:-1]])
+    def process_train_seq(self, uniq_id, src, tgt, timestep, mask, prev_tgt):
+        #prev_tgt = torch.cat([self.action_padding_num*torch.ones(1, self.action_dim), tgt[:-1]])
         src_mask = mask
         tgt_mask = mask
 
@@ -350,17 +350,10 @@ class GymDataset(OFADataset):
             rtg = torch.tensor(rtg, dtype=torch.float32)
         timesteps = torch.tensor(timesteps).reshape((-1, 1))
 
-        #rsa = torch.cat([rtg.reshape(-1, 1), s.reshape(-1, self.state_dim), a.reshape(-1, self.action_dim)], dim=-1).reshape(-1)
-        #src = rsa[:-self.action_dim]
-        #tgt = rsa[-self.action_dim:]
-
-
         mask = torch.tensor(mask)
-        #mask = 1 - mask  # TODO
         #tgt_mask = mask*torch.ones((1, self.action_dim))
 
-        tgt = a.reshape((-1, self.action_dim))  # shape = [T, dim_a]
-        train_a = tgt.clone()
+        train_a = a.reshape((-1, self.action_dim)).clone()
         train_a[-1] = self.action_padding_num*torch.ones(self.action_dim)
 
         rsa = torch.cat([rtg.reshape(-1, 1), s.reshape(-1, self.state_dim), train_a], dim=-1)  # shape = [T, 1 + dim_s + dim_a]
@@ -368,7 +361,14 @@ class GymDataset(OFADataset):
         src = rsa  # shape = [T, 1 + dim_s + dim_a]
         #src_mask = torch.cat([mask*torch.ones((1, 1)), mask*torch.ones((1, self.state_dim)), mask*torch.ones((1, self.action_dim))], dim=-1)
 
-        return uniq_id, src, tgt, timesteps, mask
+        #tgt = a.reshape((-1, self.action_dim))  # shape = [T, dim_a]
+        #bos_tgt = self.action_padding_num * torch.ones(1, self.action_dim)
+
+        tgt = torch.cat([rtg.reshape(-1, 1), s.reshape(-1, self.state_dim), a.reshape((-1, self.action_dim))], dim=-1)
+        bos_tgt = torch.cat([self.state_padding_num * torch.ones(1, self.state_dim), 0.0 * torch.ones(1, 1), self.action_padding_num * torch.ones(1, self.action_dim)], dim=-1)
+        prev_tgt = torch.cat([bos_tgt, tgt[:-1]])
+
+        return uniq_id, src, tgt, timesteps, mask, prev_tgt
 
     def process_trajectory(self, index):
         uniq_id, s, a, r, d, rtg, timesteps, mask = self.dataset[index]
@@ -380,8 +380,8 @@ class GymDataset(OFADataset):
         timesteps = get_nparray_from_str(timesteps)
         mask = get_nparray_from_str(mask)
 
-        uniq_id, src, tgt, timesteps, mask = self.process_trajectory_from_vars(uniq_id, s, a, r, d, rtg, timesteps, mask)
-        return uniq_id, src, tgt, timesteps, mask
+        uniq_id, src, tgt, timesteps, mask, prev_tgt = self.process_trajectory_from_vars(uniq_id, s, a, r, d, rtg, timesteps, mask)
+        return uniq_id, src, tgt, timesteps, mask, prev_tgt
 
 if __name__ == '__main__':
     from data.file_dataset import FileDataset

@@ -11,7 +11,7 @@ user_dir=../../ofa_module
 
 env=hopper
 dataset=expert   #medium-replay  # expert # medium
-dataset_valid=medium
+dataset_valid=medium-replay
 data_dir=../../dataset/gym_data
 data=${data_dir}/${env}-${dataset}-v2.tsv,${data_dir}/${env}-${dataset_valid}-v2.tsv
 restore_file=./checkpoints/ofa_base.pt
@@ -23,9 +23,9 @@ arch=ofa_traj_base
 criterion=adjust_label_smoothed_cross_entropy
 label_smoothing=0.0
 lr=1e-4
-max_epoch=1
+max_epoch=3
 warmup_ratio=0.01
-batch_size=32
+batch_size=64
 update_freq=1
 resnet_drop_path_rate=0.0
 encoder_drop_path_rate=0.1
@@ -38,7 +38,7 @@ num_bins=1000
 patch_image_size=384
 sample_patch_num=196
 max_image_size=512
-drop_worst_after=5000
+drop_worst_after=3000
 
 log_dir=./logs
 save_dir=./checkpoints
@@ -78,7 +78,7 @@ python ../../train.py \
   --fixed-validation-seed=7 \
   --keep-last-epochs=15 \
   --save-interval=1 \
-  --save-interval-updates=6000 \
+  --save-interval-updates=10000 \
   --disable-validation \
   --max-src-length=${max_src_length} \
   --max-tgt-length=${max_tgt_length} \
@@ -96,6 +96,7 @@ python ../../train.py \
   --use-bmuf \
   --fp16-scale-window=128 \
   --num-workers=0 #> ${log_file} 2>&1
+
 
 # --restore-file=${restore_file} \
 # --freeze-encoder-embedding \

@@ -528,7 +528,8 @@ class TrajTransformerEncoder(FairseqEncoder):
         self.entangle_position_embedding = args.entangle_position_embedding
 
         # new added children
-        self.emb_sources = nn.Linear(15, embed_tokens.embedding_dim)  # args.num_motion_joints
+        src_dim = 11 + 1 + 3
+        self.emb_sources = nn.Linear(src_dim, embed_tokens.embedding_dim)  # args.num_motion_joints
 
         '''
         from pathlib import Path
@@ -1146,8 +1147,10 @@ class TrajTransformerDecoder(FairseqIncrementalDecoder):
         self.entangle_position_embedding = args.entangle_position_embedding
 
         # new added child
-        self.embed_targets = nn.Linear(3, input_embed_dim)  # args.num_motion_joints
-        self.project_embed_to_target = nn.Linear(self.output_embed_dim, 3)
+        #tgt_dim = 3
+        tgt_dim = 11 + 1 + 3
+        self.embed_targets = nn.Linear(tgt_dim, input_embed_dim)  # args.num_motion_joints
+        self.project_embed_to_target = nn.Linear(self.output_embed_dim, tgt_dim)
         return
 
     def build_output_projection(self, args, dictionary, embed_tokens):

@@ -378,8 +378,8 @@ class MujocoControlTask(OFATask):
                 #exit(5)
                 gym_data.append((uniq_id, s, a, r, d, rtg, timesteps, mask))
 
-                if i_traj > 100:
-                    break
+                #if i_traj > 100:
+                #    break
         return gym_data
 
     def extact_traj_window(self, traj, t_end_window, window_len):
