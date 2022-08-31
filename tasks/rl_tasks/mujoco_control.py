@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class MujocoControlTask(OFATask):
     def __init__(self, cfg: argparse.Namespace):
+        self.name = 'mujoco_control'
 
         """Setup the task."""
         # load dictionaries

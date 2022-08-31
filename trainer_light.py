@@ -159,6 +159,8 @@ class TrainerLight(object):
 
         if not path:
             path = './output'
+            path = os.path.join(path, self.task.name)
+            path = os.path.join(path, self.task.env_name)
         os.makedirs(path, exist_ok=True)
         path = os.path.join(path, model_file_name)
 
