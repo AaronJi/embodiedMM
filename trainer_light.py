@@ -100,11 +100,13 @@ class TrainerLight(object):
         #print(exit(3))
         eval_start = time.time()
 
-        self.model.eval()
-        outputs_list = self.valid_step(None, raise_oom=False)
-        for outputs in outputs_list:
-            for k, v in outputs.items():
-                logs[f'evaluation/{k}'] = v
+
+        if self.task.env_name != 'Walker':
+            self.model.eval()
+            outputs_list = self.valid_step(None, raise_oom=False)
+            for outputs in outputs_list:
+                for k, v in outputs.items():
+                    logs[f'evaluation/{k}'] = v
 
         logs['time/total'] = time.time() - self.start_time
         logs['time/evaluation'] = time.time() - eval_start
