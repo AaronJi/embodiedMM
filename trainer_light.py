@@ -1,3 +1,4 @@
+import os
 import argparse
 import logging
 import torch
@@ -119,6 +120,7 @@ class TrainerLight(object):
             for k, v in logs.items():
                 print(f'{k}: {v}')
 
+        self.save_model(iter_num)
         return logs
 
     def eval(self, print_logs=False):
@@ -149,4 +151,20 @@ class TrainerLight(object):
         # prefer updating the LR based on the number of steps
         return self.lr_step_update()
 
+    def save_model(self, iter_num=-1, path=None, file_postfix=None):
+        model_file_name = 'last_checkpoint'
+        if file_postfix is not None:
+            model_file_name += file_postfix
+        model_file_name += ".pt"
 
+        if not path:
+            path = './output'
+        os.makedirs(path, exist_ok=True)
+        path = os.path.join(path, model_file_name)
+
+        if isinstance(self.model, torch.nn.DataParallel):
+            model_to_save = self.model.module
+        else:
+            model_to_save = self.model
+        torch.save({'iter_num': iter_num, 'model_state_dict': model_to_save.state_dict()}, path)
+        return

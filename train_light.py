@@ -22,7 +22,7 @@ def main(cfg: argparse.Namespace) -> None:
     logger.info(args)
 
     task = MujocoControlTask(cfg)
-    task.build_env()
+    task.build()
     task.load_dataset()
 
     assert cfg.criterion, "Please specify criterion to train a model"

@@ -8,7 +8,9 @@ import torch
 from fairseq.data import Dictionary
 from tasks.ofa_task import OFATask, OFAConfig
 from environments.rl_environments.gym_environment import GymEnvironment
+from environments.rl_environments.unity_environment import UnityMLEnvironment
 from data.rl_data.gym_original_dataset import GymDataset
+from data.rl_data.unity_dataset import UnityDataset
 from models.trajectory.decision_transformer import DecisionTransformer
 from models.trajectory.mlp_bc import MLPBCModel
 from models.trajectory.trajectory_OFA import TrajectoryOFAModel
@@ -45,7 +47,6 @@ class MujocoControlTask(OFATask):
 
         super().__init__(OFAConfig, src_dict, tgt_dict)
         self.cfg = cfg
-        self.exp_prefix = 'gym-experiment'
 
         self.model = None
         self.criterion = None
@@ -55,47 +56,71 @@ class MujocoControlTask(OFATask):
 
         return
 
-    def build_env(self):
+    def build(self):
         if self.cfg.env == 'hopper':
             self.env_name = 'Hopper-v3'
             self.max_ep_len = 1000
             self.env_targets = [3600, 1800]  # evaluation conditioning targets
             self.scale = 1000.  # normalization for rewards/returns
+            self.env = GymEnvironment(self.cfg, self.env_name)
+            self.dataset = GymDataset(self.cfg, self.env, self.max_ep_len, self.scale)
+            self.dataset_path = f'dataset/gym_data/{self.cfg.env}-{self.cfg.dataset}-v2.pkl'
+            self.exp_prefix = 'gym-experiment'
         elif self.cfg.env == 'halfcheetah':
             self.env_name = 'HalfCheetah-v3'
             self.max_ep_len = 1000
             self.env_targets = [12000, 6000]
             self.scale = 1000.
+            self.env = GymEnvironment(self.cfg, self.env_name)
+            self.dataset = GymDataset(self.cfg, self.env, self.max_ep_len, self.scale)
+            self.dataset_path = f'dataset/gym_data/{self.cfg.env}-{self.cfg.dataset}-v2.pkl'
+            self.exp_prefix = 'gym-experiment'
         elif self.cfg.env == 'walker2d':
             self.env_name = 'Walker2d-v3'
             self.max_ep_len = 1000
             self.env_targets = [5000, 2500]
             self.scale = 1000.
+            self.env = GymEnvironment(self.cfg, self.env_name)
+            self.dataset = GymDataset(self.cfg, self.env, self.max_ep_len, self.scale)
+            self.dataset_path = f'dataset/gym_data/{self.cfg.env}-{self.cfg.dataset}-v2.pkl'
+            self.exp_prefix = 'gym-experiment'
         elif self.cfg.env == 'reacher2d':
             self.env_name = 'Reacher2d'
             self.max_ep_len = 100
             self.env_targets = [76, 40]
             self.scale = 10.
+            self.env = GymEnvironment(self.cfg, self.env_name)
+            self.dataset = GymDataset(self.cfg, self.env, self.max_ep_len, self.scale)
+            self.dataset_path = f'dataset/gym_data/{self.cfg.env}-{self.cfg.dataset}-v2.pkl'
+            self.exp_prefix = 'gym-experiment'
+        elif self.cfg.env == 'walker':
+            self.env_name = 'Walker'
+            self.max_ep_len = 1000
+            self.env_targets = [1000, 500]
+            self.scale = 1000.
+            self.env = UnityMLEnvironment(self.cfg, self.env_name)
+            self.dataset = UnityDataset(self.cfg, self.env, self.max_ep_len, self.scale)
+            self.dataset_path = f'dataset/unity_data/{self.cfg.env}.pkl'
+            self.exp_prefix = 'unity-experiment'
         else:
             raise NotImplementedError
 
         if self.cfg.model == 'bc':
             self.env_targets = self.env_targets[:1]  # since BC ignores target, no need for different evaluations
 
-        self.env = GymEnvironment(self.cfg, self.env_name)
 
         return
 
     def load_dataset(self):
-        self.dataset = GymDataset(self.cfg, self.env, self.max_ep_len, self.scale)
+
         dataset = self.cfg.dataset
 
         group_name = f'{self.exp_prefix}-{self.env_name}-{dataset}'
         self.exp_prefix = f'{group_name}-{random.randint(int(1e5), int(1e6) - 1)}'
 
         # load dataset
-        dataset_path = f'dataset/gym_data/{self.cfg.env}-{dataset}-v2.pkl'
-        self.dataset.load(dataset_path)
+
+        self.dataset.load(self.dataset_path)
 
         print('=' * 50)
         print(f'Starting new experiment: {self.env.name} {dataset}')
