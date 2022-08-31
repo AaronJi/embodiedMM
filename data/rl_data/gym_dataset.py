@@ -392,7 +392,7 @@ if __name__ == '__main__':
     data_dir = "/Users/jiluo-wendu/git/myGit/embodiedMM/dataset/gym_data"
     file_path = "%s/%s-%s-v2.tsv" % (data_dir, env, dataset)
     selected_cols = '0,1,2,3,4,5,6,7'
-    separator = '"\t"'
+    separator = "\t"
 
     print(file_path)
     dataset = FileDataset(file_path, selected_cols, separator=separator)

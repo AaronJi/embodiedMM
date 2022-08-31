@@ -51,6 +51,15 @@ class DecisionTransformer(TrajectoryModel):
         self.predict_return = torch.nn.Linear(hidden_size, 1)
 
     def forward(self, states, actions, rewards, returns_to_go, timesteps, attention_mask=None):
+        '''
+        :param states: shape = [bsz, seq_len, n_state]
+        :param actions: shape = [bsz, seq_len, n_action]
+        :param rewards:  shape = [bsz, seq_len, 1]
+        :param returns_to_go:   shape = [bsz, seq_len, 1]
+        :param timesteps:    shape = [bsz, seq_len]
+        :param attention_mask:    shape = [bsz, seq_len]
+        :return:
+        '''
 
         batch_size, seq_length = states.shape[0], states.shape[1]
 
@@ -59,10 +68,10 @@ class DecisionTransformer(TrajectoryModel):
             attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
 
         # embed each modality with a different head
-        state_embeddings = self.embed_state(states)
-        action_embeddings = self.embed_action(actions)
-        returns_embeddings = self.embed_return(returns_to_go)
-        time_embeddings = self.embed_timestep(timesteps)
+        state_embeddings = self.embed_state(states)  # shape = [bsz, seq_len, emb_dim]
+        action_embeddings = self.embed_action(actions)  # shape = [bsz, seq_len, emb_dim]
+        returns_embeddings = self.embed_return(returns_to_go)  # shape = [bsz, seq_len, emb_dim]
+        time_embeddings = self.embed_timestep(timesteps)  # shape = [bsz, seq_len, emb_dim]
 
         # time embeddings are treated similar to positional embeddings
         state_embeddings = state_embeddings + time_embeddings
@@ -71,8 +80,8 @@ class DecisionTransformer(TrajectoryModel):
 
         # this makes the sequence look like (R_1, s_1, a_1, R_2, s_2, a_2, ...)
         # which works nice in an autoregressive sense since states predict actions
-        stacked_inputs = torch.stack((returns_embeddings, state_embeddings, action_embeddings), dim=1).permute(0, 2, 1, 3).reshape(batch_size, 3*seq_length, self.hidden_size)
-        stacked_inputs = self.embed_ln(stacked_inputs)
+        stacked_inputs = torch.stack((returns_embeddings, state_embeddings, action_embeddings), dim=1).permute(0, 2, 1, 3).reshape(batch_size, 3*seq_length, self.hidden_size)  # [r,s, a]
+        stacked_inputs = self.embed_ln(stacked_inputs)  # shape = [bsz, 3*seq_len, emb_dim]
 
         # to make the attention mask fit the stacked inputs, have to stack it as well
         stacked_attention_mask = torch.stack((attention_mask, attention_mask, attention_mask), dim=1).permute(0, 2, 1).reshape(batch_size, 3*seq_length)
@@ -82,15 +91,15 @@ class DecisionTransformer(TrajectoryModel):
             inputs_embeds=stacked_inputs,
             attention_mask=stacked_attention_mask,
         )
-        x = transformer_outputs['last_hidden_state']
+        x = transformer_outputs['last_hidden_state']  # shape = [bsz, 3*seq_len, emb_dim]
 
         # reshape x so that the second dimension corresponds to the original
         # returns (0), states (1), or actions (2); i.e. x[:,1,t] is the token for s_t
-        x = x.reshape(batch_size, seq_length, 3, self.hidden_size).permute(0, 2, 1, 3)
+        x = x.reshape(batch_size, seq_length, 3, self.hidden_size).permute(0, 2, 1, 3)  # shape = [bsz, 3, seq_len, emb_dim]
         # get predictions
-        return_preds = self.predict_return(x[:,2])  # predict next return given state and action
-        state_preds = self.predict_state(x[:,2])    # predict next state given state and action
-        action_preds = self.predict_action(x[:,1])  # predict next action given state
+        return_preds = self.predict_return(x[:,2])  # predict next return given state and action, a=>r, shape = [bsz, seq_len, 1]
+        state_preds = self.predict_state(x[:,2])    # predict next state given state and action, a=>s, shape = [bsz, seq_len, n_state]
+        action_preds = self.predict_action(x[:,1])  # predict next action given state, s=>a, shape = [bsz, seq_len, n_action]
 
         return state_preds, action_preds, return_preds
 
@@ -101,10 +110,6 @@ class DecisionTransformer(TrajectoryModel):
         actions = actions.reshape(1, -1, self.action_dim)
         returns_to_go = returns_to_go.reshape(1, -1, 1)
         timesteps = timesteps.reshape(1, -1)
-
-        #print('***')
-        #print(states.shape)
-        #print(actions.shape)
 
         if self.max_length is not None:
             states = states[:,-self.max_length:]
@@ -122,16 +127,6 @@ class DecisionTransformer(TrajectoryModel):
         else:
             attention_mask = None
 
-        #print('***')
-        #print(states.shape)
-        #print(actions.shape)
-        #print(states[0])
-        #print(actions[0])
-        #print(returns_to_go.shape)
-
         _, action_preds, return_preds = self.forward(states, actions, None, returns_to_go, timesteps, attention_mask=attention_mask, **kwargs)
 
-        #print(action_preds.shape)
-        #print(action_preds[0,-1].shape)
-        #exit(3)
         return action_preds[0,-1]

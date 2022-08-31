@@ -119,7 +119,8 @@ class MujocoControlTask(OFATask):
                 n_head=self.cfg.n_head,
                 n_inner=4 * self.cfg.embed_dim,
                 activation_function=self.cfg.activation_function,
-                n_positions=1024,
+                #n_positions=1024,
+                n_ctx=1024,
                 resid_pdrop=self.cfg.dropout,
                 attn_pdrop=self.cfg.dropout,
             )

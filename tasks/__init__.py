@@ -2,6 +2,6 @@
 #from .mm_tasks import *
 #from .nlg_tasks import *
 #from .nlu_tasks import *
-from .pretrain_tasks import *
+#from .pretrain_tasks import *
 from .rl_tasks import *
 #from .ofa_task import OFATask

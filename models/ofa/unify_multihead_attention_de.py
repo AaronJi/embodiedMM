@@ -400,7 +400,7 @@ class MultiheadAttention(nn.Module):
                 attn_weights = attn_weights.transpose(0, 2)   # encode: [len, num_heads, bsz, len];  # decode: [len, num_heads, bsz, len]
                 #print(attn_weights.shape)
                 #print(attn_weights)
-                attn_weights = attn_weights.masked_fill(key_padding_mask, float("-inf"))
+                attn_weights = attn_weights.masked_fill(key_padding_mask.to(torch.bool), float("-inf"))
                 attn_weights = attn_weights.transpose(0, 2)
                 #print(attn_weights.shape)   # encode: [bsz, num_heads, len, len]; decode: [bsz, num_heads, len, len]
                 #print(attn_weights)
