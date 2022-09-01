@@ -30,6 +30,8 @@ class GymDataset(OFADataset):
 
 
     def load(self, dataset_path):
+        self.data_name = dataset_path.split('/')[-1].split('.')[0]
+        
         with open(dataset_path, 'rb') as f:
             self.trajectories = pickle.load(f)
 
