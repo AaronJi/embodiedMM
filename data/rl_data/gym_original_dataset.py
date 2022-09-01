@@ -9,6 +9,7 @@ from data.ofa_dataset import OFADataset
 from utils.rl.rl_utils import discount_cumsum
 from environments.rl_environments.gym_environment import GymEnvironment
 from utils.statistic_utils import cal_stat
+from utils import utils as uu
 
 class GymDataset(OFADataset):
     def __init__(self, cfg: argparse.Namespace, env: GymEnvironment, max_ep_len=1000, scale=1):
@@ -31,7 +32,7 @@ class GymDataset(OFADataset):
 
     def load(self, dataset_path):
         self.data_name = dataset_path.split('/')[-1].split('.')[0]
-        
+
         with open(dataset_path, 'rb') as f:
             self.trajectories = pickle.load(f)
 
