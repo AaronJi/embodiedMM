@@ -152,9 +152,6 @@ class TrainerLight(object):
 
 
     def sample_and_save(self, path=None):
-        #n_traj = len(self.task.dataset)
-        #print(n_traj)
-
         window_samples = self.task.dataset.convert_to_window_sample()
         import random
         random.shuffle(window_samples)
@@ -177,6 +174,7 @@ class TrainerLight(object):
             self.save_data_file.write(line)
             if i > 0 and i % 100 == 0:
                 print('%i samples written.' % i)
+        self.save_data_file.close()
         return
 
     def lr_step_begin_epoch(self, epoch):
