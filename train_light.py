@@ -27,13 +27,17 @@ def main(cfg: argparse.Namespace) -> None:
 
     assert cfg.criterion, "Please specify criterion to train a model"
 
-    model = task.build_model(cfg.model)
-    criterion = task.build_criterion(cfg.criterion)
+    if cfg.mode in ['train', 'eval']:
+        model = task.build_model(cfg.model)
+        criterion = task.build_criterion(cfg.criterion)
 
-    logger.info(model)
-    logger.info("task: {}".format(task.__class__.__name__))
-    logger.info("model: {}".format(model.__class__.__name__))
-    logger.info("criterion: {}".format(criterion.__class__.__name__))
+        logger.info(model)
+        logger.info("task: {}".format(task.__class__.__name__))
+        logger.info("model: {}".format(model.__class__.__name__))
+        logger.info("criterion: {}".format(criterion.__class__.__name__))
+    else:
+        model = None
+        criterion = None
 
     quantizer = None
     trainer = TrainerLight(cfg, task, model, criterion, quantizer)
