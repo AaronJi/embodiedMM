@@ -30,6 +30,38 @@ class GymDataset(OFADataset):
 
         return
 
+    def convert_to_window_sample(self, win_len=None):
+        if win_len is None:
+            win_len = self.win_len
+
+        window_samples = []
+
+        for i_traj, traj in enumerate(self.trajectories):
+            traj_name = self.data_name + '-traj' + str(i_traj)
+
+            for t_end_window in range(traj['rewards'].shape[0]):
+                sample_name = traj_name + '-step' + str(t_end_window)
+                t_start_window = max(t_end_window - win_len + 1, 0)
+                t_len = t_end_window - t_start_window + 1
+
+                s = uu.reform_window_len(traj['observations'], win_len, index_end=t_end_window, padding_num=self.bos_value, batch_dim=1, data_form='np')
+                a = uu.reform_window_len(traj['actions'], win_len, index_end=t_end_window, padding_num=self.bos_value, batch_dim=1, data_form='np')
+                r = uu.reform_window_len(traj['rewards'], win_len, index_end=t_end_window, padding_num=0, batch_dim=0, data_form='np')
+                a_prev = uu.reform_window_len(traj['actions'], win_len, index_end=t_end_window - 1, padding_num=self.bos_value, batch_dim=1, data_form='np')
+                r_prev = uu.reform_window_len(traj['rewards'], win_len, index_end=t_end_window - 1, padding_num=0, batch_dim=0, data_form='np')
+                timemasks = uu.padding_to_window(np.zeros(t_len), win_len, padding_num=1, batch_dim=0, data_form='np')
+                timesteps = uu.padding_to_window(np.arange(t_start_window, t_end_window + 1), win_len, padding_num=0, batch_dim=0, data_form='np')
+
+                assert s.shape[0] == win_len and s.shape[1] == self.env.state_dim
+                assert a.shape[0] == win_len and a.shape[1] == self.env.action_dim
+                assert a_prev.shape[0] == win_len and a_prev.shape[1] == self.env.action_dim
+                assert r.shape[0] == win_len
+                assert r_prev.shape[0] == win_len
+                sample = {'uniq_id': sample_name, 'env': 'd4rl', 'traj': i_traj, 't': t_end_window, 's': s, 'a': a, 'r': r, 'a_prev': a_prev, 'r_prev': r_prev, 'timemasks': timemasks, 'timesteps': timesteps}
+                window_samples.append(sample)
+
+        return window_samples
+
     def get_batch(self, batch_size=256, max_len=20, scale_way='normalize'):
         batch_inds = np.random.choice(
             np.arange(self.num_trajectories),
