@@ -37,10 +37,17 @@ def main(cfg: argparse.Namespace) -> None:
 
     quantizer = None
     trainer = TrainerLight(cfg, task, model, criterion, quantizer)
-    trainer._build_optimizer()
 
-    train(cfg, trainer)
-    #eval(cfg, trainer)
+    if cfg.mode == 'train':
+        trainer._build_optimizer()
+
+        train(cfg, trainer)
+    elif cfg.mode == 'eval':
+        eval(cfg, trainer)
+    elif cfg.mode == 'sample':
+        trainer.sample_and_save()
+    else:
+        raise NotImplementedError
     return
 
 def train(cfg, trainer):
@@ -176,9 +183,10 @@ def print_list_of_dict(list_dict):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--mode', type=str, default='train')  # train or sample
     parser.add_argument('--env', type=str, default='hopper')  # hopper, walker2d, halfcheetah
     parser.add_argument('--dataset', type=str, default='medium-replay')  # medium, medium-replay, medium-expert, expert
-    parser.add_argument('--mode', type=str, default='normal')  # normal for standard setting, delayed for sparse
+    parser.add_argument('--reward_mode', type=str, default='normal')  # normal for standard setting, delayed for sparse
     parser.add_argument('--K', type=int, default=20)
     parser.add_argument('--pct_traj', type=float, default=1.)
     parser.add_argument('--batch_size', type=int, default=64)

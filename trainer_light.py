@@ -4,6 +4,7 @@ import logging
 import torch
 import time
 import numpy as np
+from utils import utils as uu
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,8 @@ class TrainerLight(object):
 
         self.diagnostics = dict()
         self.start_time = time.time()
+
+        self.separator = "\t"
         return
 
     def _build_optimizer(self):
@@ -147,6 +150,35 @@ class TrainerLight(object):
 
         return outputs_list
 
+
+    def sample_and_save(self, path=None):
+        #n_traj = len(self.task.dataset)
+        #print(n_traj)
+
+        window_samples = self.task.dataset.convert_to_window_sample()
+        import random
+        random.shuffle(window_samples)
+        print('Start to write %i data samples.' % len(window_samples))
+
+        if not path:
+            #path = './output'
+            #path = os.path.join(path, self.task.name)
+            #path = os.path.join(path, self.task.env_name)
+            path = self.task.dataset_dir
+        os.makedirs(path, exist_ok=True)
+        save_data_name = self.task.dataset.data_name + '.tsv'
+        save_data_path = os.path.join(path, save_data_name)
+        print('Saving to %s.' % save_data_path)
+        self.save_data_file = open(save_data_path, 'w')
+
+        for i, sample in enumerate(window_samples):
+            line_data = [sample['s'], sample['a'], sample['a_prev'], sample['r_prev'], sample['timemasks'], sample['timesteps']]
+            line = uu.get_write_line(sample['uniq_id'], sample['env'], sample['t'], line_data, self.separator)
+            self.save_data_file.write(line)
+            if i > 0 and i % 100 == 0:
+                print('%i samples written.' % i)
+        return
+
     def lr_step_begin_epoch(self, epoch):
         """Adjust the learning rate at the beginning of the epoch."""
         self.lr_scheduler.step_begin_epoch(epoch)
@@ -163,6 +195,7 @@ class TrainerLight(object):
             path = './output'
             path = os.path.join(path, self.task.name)
             path = os.path.join(path, self.task.env_name)
+            path = os.path.join(path, self.task.model_type)
         os.makedirs(path, exist_ok=True)
         path = os.path.join(path, model_file_name)
 

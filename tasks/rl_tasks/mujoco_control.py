@@ -65,7 +65,8 @@ class MujocoControlTask(OFATask):
             self.scale = 1000.  # normalization for rewards/returns
             self.env = GymEnvironment(self.cfg, self.env_name)
             self.dataset = GymDataset(self.cfg, self.env, self.max_ep_len, self.scale)
-            self.dataset_path = f'dataset/gym_data/{self.cfg.env}-{self.cfg.dataset}-v2.pkl'
+            self.dataset_dir = 'dataset/gym_data/'
+            self.dataset_name = f'{self.cfg.env}-{self.cfg.dataset}-v2.pkl'
             self.exp_prefix = 'gym-experiment'
         elif self.cfg.env == 'halfcheetah':
             self.env_name = 'HalfCheetah-v3'
@@ -74,7 +75,8 @@ class MujocoControlTask(OFATask):
             self.scale = 1000.
             self.env = GymEnvironment(self.cfg, self.env_name)
             self.dataset = GymDataset(self.cfg, self.env, self.max_ep_len, self.scale)
-            self.dataset_path = f'dataset/gym_data/{self.cfg.env}-{self.cfg.dataset}-v2.pkl'
+            self.dataset_dir = 'dataset/gym_data/'
+            self.dataset_name = f'{self.cfg.env}-{self.cfg.dataset}-v2.pkl'
             self.exp_prefix = 'gym-experiment'
         elif self.cfg.env == 'walker2d':
             self.env_name = 'Walker2d-v3'
@@ -83,7 +85,8 @@ class MujocoControlTask(OFATask):
             self.scale = 1000.
             self.env = GymEnvironment(self.cfg, self.env_name)
             self.dataset = GymDataset(self.cfg, self.env, self.max_ep_len, self.scale)
-            self.dataset_path = f'dataset/gym_data/{self.cfg.env}-{self.cfg.dataset}-v2.pkl'
+            self.dataset_dir = 'dataset/gym_data/'
+            self.dataset_name = f'{self.cfg.env}-{self.cfg.dataset}-v2.pkl'
             self.exp_prefix = 'gym-experiment'
         elif self.cfg.env == 'reacher2d':
             self.env_name = 'Reacher2d'
@@ -92,7 +95,8 @@ class MujocoControlTask(OFATask):
             self.scale = 10.
             self.env = GymEnvironment(self.cfg, self.env_name)
             self.dataset = GymDataset(self.cfg, self.env, self.max_ep_len, self.scale)
-            self.dataset_path = f'dataset/gym_data/{self.cfg.env}-{self.cfg.dataset}-v2.pkl'
+            self.dataset_dir = 'dataset/gym_data/'
+            self.dataset_name = f'{self.cfg.env}-{self.cfg.dataset}-v2.pkl'
             self.exp_prefix = 'gym-experiment'
         elif self.cfg.env == 'walker':
             self.env_name = 'Walker'
@@ -101,14 +105,16 @@ class MujocoControlTask(OFATask):
             self.scale = 1000.
             self.env = UnityMLEnvironment(self.cfg, self.env_name)
             self.dataset = UnityDataset(self.cfg, self.env, self.max_ep_len, self.scale)
-            self.dataset_path = f'dataset/unity_data/{self.cfg.env}.pkl'
+            self.dataset_dir = 'dataset/unity_data/'
+            self.dataset_name = f'{self.cfg.env}.pkl'
             self.exp_prefix = 'unity-experiment'
         else:
             raise NotImplementedError
 
+        self.dataset_path = self.dataset_dir + self.dataset_name
+
         if self.cfg.model == 'bc':
             self.env_targets = self.env_targets[:1]  # since BC ignores target, no need for different evaluations
-
 
         return
 
