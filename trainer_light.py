@@ -125,7 +125,7 @@ class TrainerLight(object):
             for k, v in logs.items():
                 print(f'{k}: {v}')
 
-        self.save_model(iter_num)
+        self.save_model(iter_num, file_postfix='-' + self.cfg.dataset)
         return logs
 
     def eval(self, print_logs=False):
