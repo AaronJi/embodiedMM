@@ -22,8 +22,8 @@ class UnityDataset(OFADataset):
 
         self.win_len = 5
         self.scale_way = None  # 'normalize'
-        self.bos_value = -1
-        #self.bos_value = -10
+        #self.bos_value = -1
+        self.bos_value = -10
         self.eos_value = -2
         self.write_to_tsv = False
         self.separator = "\t"
