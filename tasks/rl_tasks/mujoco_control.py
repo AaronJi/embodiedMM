@@ -88,6 +88,16 @@ class MujocoControlTask(OFATask):
             self.dataset_dir = 'dataset/gym_data/'
             self.dataset_name = f'{self.cfg.env}-{self.cfg.dataset}-v2.pkl'
             self.exp_prefix = 'gym-experiment'
+        elif self.cfg.env == 'ant':
+            self.env_name = 'Ant-v3'
+            self.max_ep_len = 1000
+            self.env_targets = [12000, 6000]  # TODO
+            self.scale = 1000.
+            self.env = GymEnvironment(self.cfg, self.env_name)
+            self.dataset = GymDataset(self.cfg, self.env, self.max_ep_len, self.scale)
+            self.dataset_dir = 'dataset/gym_data/'
+            self.dataset_name = f'{self.cfg.env}-{self.cfg.dataset}-v2.pkl'
+            self.exp_prefix = 'gym-experiment'
         elif self.cfg.env == 'reacher2d':
             self.env_name = 'Reacher2d'
             self.max_ep_len = 100
