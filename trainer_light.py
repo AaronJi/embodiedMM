@@ -172,7 +172,7 @@ class TrainerLight(object):
             line_data = [sample['s'], sample['a'], sample['a_prev'], sample['r_prev'], sample['timemasks'], sample['timesteps']]
             line = uu.get_write_line(sample['uniq_id'], sample['env'], sample['t'], line_data, self.separator)
             self.save_data_file.write(line)
-            if i > 0 and i % 100 == 0:
+            if i > 0 and i % 1000 == 0:
                 print('%i samples written.' % i)
         self.save_data_file.close()
         return
