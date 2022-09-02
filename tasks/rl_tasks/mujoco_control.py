@@ -91,7 +91,7 @@ class MujocoControlTask(OFATask):
         elif self.cfg.env == 'ant':
             self.env_name = 'Ant-v3'
             self.max_ep_len = 1000
-            self.env_targets = [12000, 6000]  # TODO
+            self.env_targets = [10000, 5000]  # TODO
             self.scale = 1000.
             self.env = GymEnvironment(self.cfg, self.env_name)
             self.dataset = GymDataset(self.cfg, self.env, self.max_ep_len, self.scale)
