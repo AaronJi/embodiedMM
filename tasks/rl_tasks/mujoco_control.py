@@ -116,7 +116,7 @@ class MujocoControlTask(OFATask):
             self.env = UnityMLEnvironment(self.cfg, self.env_name)
             self.dataset = UnityDataset(self.cfg, self.env, self.max_ep_len, self.scale)
             self.dataset_dir = 'dataset/unity_data/'
-            self.dataset_name = f'{self.cfg.env}.pkl'
+            self.dataset_name = f'{self.cfg.env}-{self.cfg.dataset}.pkl'
             self.exp_prefix = 'unity-experiment'
         else:
             raise NotImplementedError
