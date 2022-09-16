@@ -37,6 +37,7 @@ class TrainerLight(object):
         self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
             self.optimizer,
             lambda steps: min((steps + 1) / warmup_steps, 1)
+
         )
         return
 
@@ -104,7 +105,7 @@ class TrainerLight(object):
         eval_start = time.time()
 
 
-        if self.task.env_name != 'Walker':
+        if self.task.env_name not in ['Walker', 'Unimal']:
             self.model.eval()
             outputs_list = self.valid_step(None, raise_oom=False)
             for outputs in outputs_list:

@@ -118,6 +118,18 @@ class MujocoControlTask(OFATask):
             self.dataset_dir = 'dataset/unity_data/'
             self.dataset_name = f'{self.cfg.env}-{self.cfg.dataset}.pkl'
             self.exp_prefix = 'unity-experiment'
+        elif self.cfg.env == 'unimal':
+            self.env_name = 'Unimal'
+            self.max_ep_len = 1000
+            self.env_targets = [3000, 1000]
+            self.scale = 1000.
+            from collections import namedtuple
+            DummyEnv = namedtuple('Env', ['name', 'state_dim', 'action_dim'])
+            self.env = DummyEnv(name='Unimal', state_dim=624, action_dim=24)
+            self.dataset = GymDataset(self.cfg, self.env, self.max_ep_len, self.scale)
+            self.dataset_dir = 'dataset/mujoco_data/'
+            self.dataset_name = f'{self.cfg.env}-{self.cfg.dataset}.pkl'
+            self.exp_prefix = 'unimal-experiment'
         else:
             raise NotImplementedError
 

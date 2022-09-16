@@ -96,11 +96,8 @@ def evaluate_episode_rtg(
     target_return = torch.tensor(ep_return, device=device, dtype=torch.float32).reshape(1, 1)
     timesteps = torch.tensor(0, device=device, dtype=torch.long).reshape(1, 1)
 
-    sim_states = []
-
     episode_return, episode_length = 0, 0
     for t in range(max_ep_len):
-
         # add padding
         actions = torch.cat([actions, torch.zeros((1, env.action_dim), device=device)], dim=0)
         rewards = torch.cat([rewards, torch.zeros(1, device=device)])
@@ -125,11 +122,8 @@ def evaluate_episode_rtg(
             pred_return = target_return[0,-1] - (reward/scale)
         else:
             pred_return = target_return[0,-1]
-        target_return = torch.cat(
-            [target_return, pred_return.reshape(1, 1)], dim=1)
-        timesteps = torch.cat(
-            [timesteps,
-             torch.ones((1, 1), device=device, dtype=torch.long) * (t+1)], dim=1)
+        target_return = torch.cat([target_return, pred_return.reshape(1, 1)], dim=1)
+        timesteps = torch.cat([timesteps, torch.ones((1, 1), device=device, dtype=torch.long) * (t+1)], dim=1)
 
         episode_return += reward
         episode_length += 1
