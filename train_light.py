@@ -25,6 +25,9 @@ def main(cfg: argparse.Namespace) -> None:
     task.build()
     task.load_dataset()
 
+    if cfg.mode == 'check':
+        exit(0)
+
     assert cfg.criterion, "Please specify criterion to train a model"
 
     if cfg.mode in ['train', 'eval']:

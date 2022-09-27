@@ -9,7 +9,16 @@ class ActionPredictionCriterion(object):
 
         states, actions, rewards, dones, rtg, timesteps, attention_mask = sample
         actions_target = torch.clone(actions)
-
+        print(states.shape)
+        print(actions.shape)
+        print(rewards.shape)
+        print(rtg.shape)
+        print(rtg[:,:-1].shape)
+        print(timesteps.shape)
+        print(attention_mask.shape)
+        print(timesteps)
+        print(attention_mask)
+        exit(5)
         states_pred, actions_pred, returns_pred = model.forward(states, actions, rewards, rtg[:,:-1], timesteps, attention_mask=attention_mask,)
 
         action_dim = actions_pred.shape[2]

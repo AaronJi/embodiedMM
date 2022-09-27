@@ -154,6 +154,7 @@ class MujocoControlTask(OFATask):
         print('=' * 50)
         print(f'Starting new experiment: {self.env.name} {dataset}')
         print(f'{len(self.dataset.traj_lens)} trajectories, {self.dataset.num_timesteps} timesteps found')
+        print(f'Average trajectory length = {np.mean(self.dataset.traj_lens)} with std = {np.std(self.dataset.traj_lens)}')
         print(f'Average return: {np.mean(self.dataset.returns):.2f}, std: {np.std(self.dataset.returns):.2f}')
         print(f'Max return: {np.max(self.dataset.returns):.2f}, min: {np.min(self.dataset.returns):.2f}')
         print('=' * 50)
